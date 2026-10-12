@@ -2,6 +2,8 @@
 
 A fan-made MapleStory-style side-scrolling platformer built with **Bun** and **WebGPU**.
 
+**Play it live: [msio.pplx.app](https://msio.pplx.app)**
+
 - WebGPU instanced sprite renderer (`src/gpu.ts`)
 - Real MapleStory maps, parallax backgrounds, footholds, ladders and ropes, read from map data
 - Orange Mushrooms, Green Mushrooms and Slimes with AI, hit/die animations and respawns
