@@ -34,7 +34,7 @@ export class ExtWindows {
     // The real MapleStory equip panel background is 184×290; we lay our socket
     // columns out beside it with the stats block underneath, so the window is
     // wider than the raw sprite but keeps its MapleStory chrome.
-    this.equipWin = w.makeWindow("equip-win", 350, 440, "EQUIPMENT", 40, 60);
+    this.equipWin = w.makeWindow("equip-win", 350, 460, "EQUIPMENT", 40, 50);
     this.invWin = w.makeWindow("inv-win", 222, 318, "ITEM INVENTORY", innerWidth - 470, 110);
     this.craftWin = w.makeWindow("craft-win", 340, 380, "CRAFTING", innerWidth / 2 - 170, 80);
     this.ahWin = w.makeWindow("ah-win", 440, 400, "AUCTION HOUSE", innerWidth / 2 - 220, 70);
@@ -82,11 +82,16 @@ export class ExtWindows {
     // Panels open in full (sprite) mode; the compact text-only mode is available
     // as a secondary view via the window's own toggle, not forced on open.
     win.classList.remove("text-only");
-    if (k === "equip") this.renderEquip();
-    else if (k === "inv") this.renderInv();
-    else if (k === "craft") this.renderCraft();
-    else this.renderAh();
-    if (wasHidden) win.classList.remove("hidden");
+    if (wasHidden) {
+      if (k === "equip") this.renderEquip();
+      else if (k === "inv") this.renderInv();
+      else if (k === "craft") this.renderCraft();
+      else this.renderAh();
+      win.classList.remove("hidden");
+      win.style.zIndex = String(++this.w.z);
+    } else {
+      win.classList.add("hidden");
+    }
     this.sig = {};
   }
   toggleMenu(anchor: HTMLElement) {
@@ -193,7 +198,7 @@ export class ExtWindows {
       <div class="ecp"><small>COMBAT POWER</small><b>${fmt(g.combatPower())}</b></div>
       <div class="estats">${row("Damage", `${fmt(lo)} ~ ${fmt(hi)}`)}${row("ATT", fmt(g.watk()))}${row("STR", fmt(g.totalStr()))}${row("DEX", fmt(g.totalDex()))}${row("INT", fmt(g.totalInt()))}${row("LUK", fmt(g.totalLuk()))}
       ${row("Max HP", fmt(g.stats.maxHp))}${row("DEF", fmt(gt.def))}${row("Boss Dmg", `${gt.boss}%`)}${row("EXP / Meso / Drop", `+${gt.exp}% / +${gt.meso}% / +${gt.drop}%`)}</div>
-      <p class="ehint">Click a piece to unequip it. Equip from the Inventory (I). Rings, pendants and badges stack in multiple sockets.</p>`;
+      <p class="ehint">Click a piece to unequip it. Equip from the Inventory (I). Rings stack across four sockets.</p>`;
   }
 
   // ------------------------------------------------------------- inventory

@@ -146,10 +146,11 @@ export class Windows {
   }
 
   toggle(w: HTMLElement) {
-    if (w === this.stat) { this.renderStatText(); this.toggleTextOnly(this.stat, "Character"); return; }
-    if (w === this.skill) { this.renderSkillText(); this.toggleTextOnly(this.skill, "Skills"); return; }
+    // Stat and skill panels open in full (sprite) mode; text-only is a secondary view.
+    const wasHidden = w.classList.contains("hidden");
+    w.classList.remove("text-only");
     w.classList.toggle("hidden");
-    if (!w.classList.contains("hidden")) { w.style.zIndex = String(++this.z); this.lastStat = this.lastSkill = this.lastItem = ""; }
+    if (wasHidden) { w.style.zIndex = String(++this.z); this.lastStat = this.lastSkill = this.lastItem = ""; }
   }
 
   /** Toggles a panel between full (sprite) mode and a compact text-only strip. */

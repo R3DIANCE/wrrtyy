@@ -150,18 +150,21 @@ export const SKILLS = [
   "1001005", "1001008", "1000003", "1000009",
   "1101011", "1101006", "1100000", "1100009",
   "1111010", "1110000",
-  // Magician: Magician -> Wizard (Fire/Poison) -> Mage
+  // Magician: Magician -> Wizard (Fire/Poison) -> Mage (Fire/Poison)
   "2001002", "2001003", "2001004", "2001005", // Magic Guard, Magic Armor, Energy Bolt, Magic Claw
   "2101001", "2101002", "2101004", "2101005", // Meditation, Teleport, Flame Orb, Poison Breath
-  "2301001", "2301003", "2301004", "2301005", "2301008", "2301010", // Teleport (Mage), Invincible, Bless, Holy Arrow, Magic Booster, Angelic Wrath
+  // Mage (FP) 3rd job: 211
+  "2111002", "2111003", "2111004", "2111005", "2111006", "2111007", // Explosion, Poison Mist, Seal, Spell Booster, Fire Demon, Teleport Mastery
   // Bowman (Archer): Archer -> Hunter -> Ranger
   "3001004", "3001005", "3001007", // Arrow Blow, Double Shot, Double Jump
   "3101003", "3101004", "3101005", "3101008", // Double Jump, Soul Arrow: Bow, Wind Arrow, Covering Fire
-  "3101007", "3101009", // Silver Hawk, Quiver Cartridge (Ranger)
+  // Ranger 3rd job: 311
+  "3111002", "3111003", "3111004", "3111005", "3111006", // Puppet, Flame Surge, Arrow Rain, Phoenix, Strafe
   // Thief (Rogue): Rogue -> Assassin -> Hermit
   "4001002", "4001003", "4001005", "4001011", // Disorder, Dark Sight, Haste, Flash Jump
   "4101003", "4101005", "4101008", "4101009", // Claw Booster, Drain, Shuriken Burst, Flash Jump
-  "4101004", "4111005", "4111010", // Haste (Hermit), Avenger, Triple Throw
+  // Hermit 3rd job: 411
+  "4111001", "4111002", "4111003", "4111004", "4111005", "4111007", // Meso Up, Shadow Partner, Shadow Web, Shadow Meso, Avenger, Dark Flare
 ];
 const jobOf = (id: string) => id.slice(0, 3);
 async function buildSkills() {

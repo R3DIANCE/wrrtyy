@@ -307,7 +307,7 @@ export class Game {
     this.stats.hp = c.base.hp;
     this.stats.mp = c.base.mp;
     // Fresh characters start with NO learned skills, then learn one usable
-    // attack skill that is already on their default hotbar.
+    // attack skill that is already on their default hotbar and eligible at level 1.
     this.skillLv = {};
     const attackIds = c.defaultQuick;
     const pick = Object.values(attackIds)
@@ -315,7 +315,11 @@ export class Game {
       .map((a) => a.id)
       .find((sid) => {
         const d = SKILL[sid];
-        return d && d.kind !== "passive" && d.kind !== "buff" && d.kind !== "move";
+        if (!d) return false;
+        if (d.kind !== "attack" && d.kind !== "ranged") return false;
+        if (this.stats.level < d.reqLevel) return false;
+        if (!c.skillsByTab.some((tab) => tab.includes(sid))) return false;
+        return true;
       });
     if (pick) this.skillLv[pick] = 1;
     this.quick = { ...c.defaultQuick };
@@ -339,7 +343,15 @@ export class Game {
   }
   mastery() { return Math.min(0.9, 0.15 + this.lv("1100000") * 0.05); }
   damageRange() { const mx = this.maxDamage(); return [Math.max(1, Math.floor(mx * this.mastery())), Math.floor(mx)]; }
-  speed() { return WALK * (1 + (this.buffs["0001002"] ? this.lv("0001002") * 0.1 : 0) + this.lv("1000009") * 0.01); }
+  speed() {
+    let mult = 1 + this.lv("1000009") * 0.01;
+    for (const [id] of Object.entries(this.buffs)) {
+      const d = SKILL[id];
+      if (d?.buff?.speed) mult += (d.buff.speed + this.lv(id)) * 0.01;
+    }
+    if (this.buffs["0001002"]) mult += this.lv("0001002") * 0.1;
+    return WALK * mult;
+  }
   jobFor(level: number) {
     const c = this.class;
     return level >= c.tabLevel[3] ? c.tabs[3] : level >= c.tabLevel[2] ? c.tabs[2] : c.tabs[1];
@@ -347,6 +359,18 @@ export class Game {
   recalc() {
     const s = this.stats;
     const gt = { watk: 0, str: 0, dex: 0, int: 0, luk: 0, hp: 0, def: 0, att: 0, strP: 0, dexP: 0, intP: 0, lukP: 0, hpP: 0, boss: 0, meso: 0, drop: 0, exp: 0 };
+    // Buff stat bonuses apply while the buff is active (level 1 = base bonus, +1 per level).
+    for (const [id, b] of Object.entries(this.buffs)) {
+      const d = SKILL[id];
+      if (!d?.buff) continue;
+      const l = Math.max(1, this.lv(id));
+      gt.att += d.buff.att ? d.buff.att * l : 0;
+      gt.str += d.buff.str ? d.buff.str * l : 0;
+      gt.dex += d.buff.dex ? d.buff.dex * l : 0;
+      gt.int += d.buff.int ? d.buff.int * l : 0;
+      gt.luk += d.buff.luk ? d.buff.luk * l : 0;
+      gt.def += d.buff.def ? d.buff.def * l : 0;
+    }
     for (const g of Object.values(this.eq)) {
       if (!g) continue;
       const st = gearStats(g);
