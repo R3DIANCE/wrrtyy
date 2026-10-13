@@ -842,9 +842,15 @@ export class Game {
     // Portals.
     const pf: Sprite[] = this.fxData.portal;
     if (pf?.length) {
-      const fr = pf[Math.floor(this.time * 10) % pf.length];
-      const t = this.assets.get(fr.url);
-      for (const pt of this.portals) if (t) r.draw(t, pt.x - fr.ox - cx, pt.y - fr.oy - cy);
+      // Animate only through frames that have finished loading, so a slow or failed frame never blinks the portal out.
+      const ready = pf.filter((f) => this.assets.get(f.url));
+      if (ready.length) {
+        const total = ready.reduce((n, f) => n + (f.delay ?? 100), 0);
+        let t = (this.time * 1000) % total, fr = ready[0];
+        for (const f of ready) { if (t < (f.delay ?? 100)) { fr = f; break; } t -= f.delay ?? 100; }
+        const tex = this.assets.get(fr.url)!;
+        for (const pt of this.portals) r.draw(tex, Math.round(pt.x - fr.ox - cx), Math.round(pt.y - fr.oy - cy), fr.w, fr.h);
+      }
     }
 
     for (const m of this.mobs) this.drawMob(m, cx, cy);

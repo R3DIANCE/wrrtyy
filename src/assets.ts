@@ -35,6 +35,8 @@ export class Assets {
       }
       this.cache.set(url, null);
       this.failed++;
+      // Allow a later retry instead of leaving a permanent hole (which shows up as flicker in animations).
+      setTimeout(() => { this.cache.delete(url); this.pending.delete(url); }, 8000);
       return null;
     })();
     this.pending.set(url, p);
