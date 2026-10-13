@@ -74,7 +74,10 @@ export class ExtWindows {
   open(k: "equip" | "inv" | "craft" | "ah") {
     const win = { equip: this.equipWin, inv: this.invWin, craft: this.craftWin, ah: this.ahWin }[k];
     if (k === "ah" && win.classList.contains("hidden")) this.w.game.ah.refresh(Date.now());
-    this.w.toggle(win);
+    if (k === "equip") { this.renderEquipText(); this.w.toggleTextOnly(this.equipWin, "Equipment"); }
+    else if (k === "inv") { this.renderInvText(); this.w.toggleTextOnly(this.invWin, "Inventory"); }
+    else if (k === "craft") { this.renderCraftText(); this.w.toggleTextOnly(this.craftWin, "Crafting"); }
+    else { this.renderAhText(); this.w.toggleTextOnly(this.ahWin, "Auction House"); }
     this.sig = {};
   }
   toggleMenu(anchor: HTMLElement) {
@@ -269,6 +272,105 @@ export class ExtWindows {
     }
     body.innerHTML = `<div class="xtabs">${tabs}</div>${html}<div class="inv-foot"><span class="tip-dim">${tab === "gear" || tab === "refine" ? "" : "Pick a piece on the left"}</span><span class="meso">${fmt(g.stats.meso)}</span></div>`;
   }
+  renderCraftText() {
+    if (!this.craftWin.classList.contains("text-only")) return;
+    const g = this.w.game, tab = this.craftTab.cur;
+    const body = this.craftWin.querySelector(".text-only-body") as HTMLElement;
+    let html = "";
+    if (tab === "gear" || tab === "refine") {
+      const list = recipes().filter((r) => (tab === "gear" ? r.kind === "gear" : r.kind !== "gear"))
+        .sort((a, b) => Number(g.stats.level < a.level) - Number(g.stats.level < b.level) || a.level - b.level);
+      html = `<p class="xnote">${tab === "gear" ? "Crafted gear is always Rare or better." : "Refine 10 ores into a plate or gem."}</p>`;
+      for (const r of list) {
+        const out = r.out;
+        const ic = out.t === "gear" ? gearIcon(recipeGearId(out.slot, out.tier) ?? 1302000) : out.t === "mat" ? matIcon(out.id) : itemIcon(out.id);
+        const locked = g.stats.level < r.level;
+        const gearName = out.t === "gear" ? GEAR.get(recipeGearId(out.slot, out.tier)!)?.name : MATS.get(out.id);
+        html += `<div class="craft-row"><span class="s-ic" style="background-image:url('${ic}')"></span>
+          <span class="s-meta"><span class="s-name">${esc(r.name)}</span><span class="s-lv">${esc(gearName ?? "")}</span></span>
+          <button data-c="${r.id}" ${g.canCraft(r) ? "" : "disabled"}>Craft</button></div>`;
+      }
+    } else {
+      const all: { g: Gear; where: string }[] = [
+        ...SLOTS.map((s) => g.eq[s]).filter((x): x is Gear => !!x).map((x) => ({ g: x, where: "Equipped" })),
+        ...g.bag.map((x) => ({ g: x, where: "Inventory" })),
+      ];
+      if (!this.pick || !all.some((x) => x.g.uid === this.pick)) this.pick = all[0]?.g.uid ?? null;
+      const sel = all.find((x) => x.g.uid === this.pick)?.g;
+      const list = all.map((x) => `<div class="pickc"><span class="e-ic" style="background-image:url('${gearIcon(x.g.id)}')"></span><span class="e-name">${esc(GEAR.get(x.g.id)?.name ?? "?")}</span><span class="e-stats">${x.where}</span></div>`).join("");
+      let panel = "<p class='xnote'>No equipment.</p>";
+      if (sel) {
+        const b = GEAR.get(sel.id)!;
+        if (tab === "star") {
+          const cost = starCost(sel), mat = starMat(sel.star), have = g.mats[mat] ?? 0;
+          panel = `<div class="sf-head"><span class="e-ic" style="background-image:url('${gearIcon(sel.id)}')"></span><div><b style="color:${RARITY_INK[sel.rarity]}">${esc(b.name)}</b><div class="stars big">${"★".repeat(sel.star)}<span class="dim">${"★".repeat(MAX_STAR - sel.star)}</span></div></div></div>
+            ${sel.star >= MAX_STAR ? `<p class="xnote">Maximum stars reached.</p>` : `<div class="sf-grid"><span>Success</span><b>${Math.round(starRate(sel.star) * 100)}%</b><span>Failure</span><b>${100 - Math.round(starRate(sel.star) * 100)}%</b><span>Next star</span><b>${gearStats({ ...sel, star: Math.min(MAX_STAR, sel.star + 1) })}</b><span>Cost</span><b>${fmt(cost)}</b><span>Material</span><b>${have}/1</b></div>
+            <button data-s="${sel.uid}" ${g.stats.meso >= cost ? "" : "disabled"}>Enhance</button>`}`;
+        } else {
+          const cost = cubeCost(sel), have = g.mats[4000010] ?? 0;
+          panel = `<div class="sf-head"><span class="e-ic" style="background-image:url('${gearIcon(sel.id)}')"></span><div><b style="color:${RARITY_INK[sel.rarity]}">${esc(b.name)}</b><div class="tip-dim">${RARITY[sel.rarity]} potential</div></div></div>
+            <div class="pot-box" style="border-color:${RARITY_COLOR[sel.rarity]}">${sel.pot.length ? sel.pot.map((p) => `<p>${POT_LABEL[p.stat]}: +${p.pct}%</p>`).join("") : "<p class='tip-dim'>No potential yet</p>"}</div>
+            <div class="sf-grid"><span>Tier-up</span><b>${[30, 10, 4, 1.5, 0][sel.rarity]}%</b><span>Cost</span><b>${fmt(cost)}</b><span>Material</span><b>${have}/5</b></div>
+            <button data-cube="${sel.uid}" ${g.stats.meso >= cost ? "" : "disabled"}>Use Cube</button>`;
+        }
+      }
+      html = `<div class="pick-list">${list}</div><div class="sf-panel">${panel}<div class="craft-result">${this.lastResult}</div></div>`;
+    }
+    body.innerHTML = `<h3>Crafting</h3>${html}`;
+    body.querySelectorAll("button[data-c]").forEach((b) => b.addEventListener("click", () => {
+      const v = (b as HTMLElement).dataset.c!;
+      if (v.startsWith("s")) { if (g.enhance(v)) this.lastResult = "SUCCESS"; }
+      else if (v.startsWith("c")) { const r = recipes().find((x) => x.id === v); if (r) this.lastResult = g.craft(r) ?? ""; }
+    }));
+    body.querySelectorAll("button[data-cube]").forEach((b) => b.addEventListener("click", () => {
+      if (g.cube(this.pick ?? "")) this.lastResult = "POTENTIAL RESET";
+    }));
+  }
+  renderAhText() {
+    if (!this.ahWin.classList.contains("text-only")) return;
+    const g = this.w.game, ah = g.ah, tab = this.ahTab.cur;
+    const body = this.ahWin.querySelector(".text-only-body") as HTMLElement;
+    let html = "";
+    if (tab === "browse") {
+      if (!ah.listings.length) ah.refresh(Date.now());
+      const f = this.ahFilter;
+      const rows = ah.listings.filter((l) => f === "all" || l.goods.t === f).map((l) => {
+        const v = goodsValue(l.goods), deal = l.price / v;
+        const tag = deal < 0.9 ? "below" : deal > 1.2 ? "above" : "fair";
+        return `<div class="ah-row"><span class="a-ic" style="background-image:url('${this.goodsIcon(l.goods)}')"></span>
+          <span class="s-meta"><span class="s-name">${esc(goodsName(l.goods))}</span><span class="s-lv">${esc(l.seller)} · ${tag}</span></span>
+          <span class="a-price">${fmt(l.price)}</span><button data-b="${l.lid}" ${g.stats.meso >= l.price ? "" : "disabled"}>Buy</button></div>`;
+      }).join("");
+      html = rows || "<p class='xnote'>No listings.</p>";
+    } else if (tab === "sell") {
+      const rows: string[] = [];
+      const row = (key: string, x: Goods) => {
+        const v = goodsValue(x);
+        rows.push(`<div class="ah-row"><span class="a-ic" style="background-image:url('${this.goodsIcon(x)}')"></span>
+          <span class="s-meta"><span class="s-name">${esc(goodsName(x))}</span><span class="s-lv">Market ≈ ${fmt(v)}</span></span>
+          <input type="number" min="1" step="1" value="${v}" aria-label="Price in mesos">
+          <button data-l="${key}">List</button></div>`);
+      };
+      for (const it of [...g.bag].sort((a, b) => gearValue(b) - gearValue(a))) row(`g:${it.uid}`, { t: "gear", gear: it });
+      for (const [id, n] of Object.entries(g.mats)) if (n > 0) row(`m:${id}`, { t: "mat", id: +id, n: Math.min(100, n) });
+      for (const [id, n] of Object.entries(g.inv)) if (n > 0) row(`u:${id}`, { t: "use", id: +id, n: Math.min(100, n) });
+      html = rows.join("") || "<p class='xnote'>Nothing to sell.</p>";
+    } else {
+      const rows = ah.mine.map((m) => `<div class="ah-row"><span class="a-ic" style="background-image:url('${this.goodsIcon(m.goods)}')"></span>
+        <span class="s-meta"><span class="s-name">${esc(goodsName(m.goods))}</span><span class="s-lv">${m.sold ? "SOLD" : "Waiting"}</span></span>
+        <span class="a-price">${fmt(m.price)}</span><button data-c="${m.lid}" ${m.sold ? "" : "disabled"}>${m.sold ? "Collect" : "Cancel"}</button></div>`).join("");
+      html = rows || "<p class='xnote'>You have no listings.</p>";
+    }
+    body.innerHTML = `<h3>Auction House</h3>${html}`;
+    body.querySelectorAll("button[data-l]").forEach((b) => b.addEventListener("click", () => {
+      const row = (b as HTMLElement).closest(".ah-row")!;
+      const price = Math.max(1, Math.round(Number((row.querySelector("input") as HTMLInputElement).value) || 0));
+      const goods = this.sellGoods((b as HTMLElement).dataset.l!);
+      if (goods) g.ahList(goods, price);
+    }));
+    body.querySelectorAll("button[data-b]").forEach((b) => b.addEventListener("click", () => g.ahBuy((b as HTMLElement).dataset.b!)));
+    body.querySelectorAll("button[data-c]").forEach((b) => b.addEventListener("click", () => g.ahCollect((b as HTMLElement).dataset.c!)));
+  }
 
   // ------------------------------------------------------------- auction house
   sellGoods(key: string): Goods | null {
@@ -342,6 +444,54 @@ export class ExtWindows {
     box.querySelector("button")!.addEventListener("click", () => { this.w.game.claimOffline(r, 1); box.remove(); this.offline = null; this.sig = {}; });
   }
 
+  renderEquipText() {
+    if (!this.equipWin.classList.contains("text-only")) return;
+    const g = this.w.game, gt = g.gt;
+    const body = this.equipWin.querySelector(".text-only-body") as HTMLElement;
+    const cells = SLOTS.map((s) => {
+      const it = g.eq[s];
+      return it ? `<div class="equip-slot" data-slot="${s}"><span class="e-ic" style="background-image:url('${gearIcon(it.id)}')"></span><span class="e-name">${esc(GEAR.get(it.id)?.name ?? "?")}</span><span class="e-stats">${it.star ? `★${it.star}` : ""}</span></div>`
+        : `<div class="equip-slot"><span class="e-name">${SLOT_NAME[s]}</span></div>`;
+    }).join("");
+    const [lo, hi] = g.damageRange();
+    const row = (k: string, v: string) => `<div class="stat-row"><span>${k}</span><b>${v}</b></div>`;
+    body.innerHTML = `<h3>Equipment</h3><div class="equip-grid">${cells}</div>
+      <div class="stat-row"><span>COMBAT POWER</span><b>${fmt(g.combatPower())}</b></div>
+      <div class="stat-row"><span>Damage</span><b>${fmt(lo)} ~ ${fmt(hi)}</b></div>
+      <div class="stat-row"><span>ATT</span><b>${fmt(g.watk())}</b></div>
+      <div class="stat-row"><span>STR</span><b>${fmt(g.totalStr())}</b></div>
+      <div class="stat-row"><span>DEX</span><b>${fmt(g.totalDex())}</b></div>
+      <div class="stat-row"><span>Max HP</span><b>${fmt(g.stats.maxHp)}</b></div>
+      <div class="stat-row"><span>DEF</span><b>${fmt(gt.def)}</b></div>
+      <div class="stat-row"><span>Boss Dmg</span><b>${gt.boss}%</b></div>
+      <div class="stat-row"><span>EXP/Meso/Drop</span><b>+${gt.exp}% / +${gt.meso}% / +${gt.drop}%</b></div>`;
+    body.querySelectorAll(".equip-slot[data-slot]").forEach((d) => d.addEventListener("click", () => g.unequip((d as HTMLElement).dataset.slot as Slot)));
+  }
+  renderInvText() {
+    if (!this.invWin.classList.contains("text-only")) return;
+    const g = this.w.game, tab = this.invTab.cur;
+    const body = this.invWin.querySelector(".text-only-body") as HTMLElement;
+    let rows = "";
+    if (tab === "equip") {
+      const bag = [...g.bag].sort((a, b) => b.rarity - a.rarity);
+      rows = bag.map((it) => `<div class="inv-item" data-e="${it.uid}"><span class="e-ic" style="background-image:url('${gearIcon(it.id)}')"></span><span class="i-name">${esc(GEAR.get(it.id)?.name ?? "?")}</span><span class="i-count">${it.star ? `★${it.star}` : ""}</span></div>`).join("");
+    } else if (tab === "use") {
+      for (const id of Object.keys(ITEMS).map(Number)) {
+        if (!(g.inv[id] > 0)) continue;
+        const it = ITEMS[id];
+        rows += `<div class="inv-item" data-u="${id}"><span class="i-ic" style="background-image:url('${itemIcon(id)}')"></span><span class="i-name">${esc(it.name)}</span><span class="i-count">${g.inv[id]}</span></div>`;
+      }
+    } else {
+      for (const [id, n] of Object.entries(g.mats)) {
+        if (!(n > 0)) continue;
+        rows += `<div class="inv-item" data-m="${id}"><span class="i-ic" style="background-image:url('${matIcon(+id)}')"></span><span class="i-name">${esc(MATS.get(+id) ?? "Material")}</span><span class="i-count">${n}</span></div>`;
+      }
+    }
+    body.innerHTML = `<h3>Inventory</h3>${rows || "<p class='xnote'>Empty.</p>"}`;
+    body.querySelectorAll(".inv-item[data-e]").forEach((d) => d.addEventListener("click", () => g.equip((d as HTMLElement).dataset.e!)));
+    body.querySelectorAll(".inv-item[data-u]").forEach((d) => d.addEventListener("click", () => g.useAction({ t: "item", id: Number((d as HTMLElement).dataset.u!) })));
+  }
+
   // ------------------------------------------------------------- per frame
   renderHud() {
     const g = this.w.game, s = g.stage, need = g.stageNeed;
@@ -377,8 +527,12 @@ export class ExtWindows {
     // Don't re-render while the user is typing a price.
     const typing = document.activeElement?.closest("#ah-win") && document.activeElement?.tagName === "INPUT";
     run("eq", this.equipWin, () => JSON.stringify([g.eq, g.stats.level, g.look, g.stats.maxHp, g.buffs["1101006"] ? 1 : 0]), () => this.renderEquip());
+    if (this.equipWin.classList.contains("text-only")) this.renderEquipText();
     run("inv", this.invWin, () => JSON.stringify([this.invTab.cur, g.bag.length, g.bag.map((b) => b.uid + b.star + b.rarity).join(), g.inv, g.mats, g.stats.meso, g.stats.level]), () => this.renderInv());
+    if (this.invWin.classList.contains("text-only")) this.renderInvText();
     run("craft", this.craftWin, () => JSON.stringify([this.craftTab.cur, this.pick, this.lastResult, g.mats, g.stats.meso, g.stats.level, g.bag.length, g.eq, g.bag.map((b) => b.uid + b.star + b.rarity).join()]), () => this.renderCraft());
+    if (this.craftWin.classList.contains("text-only")) this.renderCraftText();
     if (!typing) run("ah", this.ahWin, () => JSON.stringify([this.ahTab.cur, this.ahFilter, g.ah.listings.length, g.ah.listings[0]?.lid, g.ah.mine.map((m) => m.lid + m.sold), g.stats.meso, this.ahTab.cur === "sell" ? [g.bag.length, g.mats, g.inv] : 0, this.ahTab.cur === "mine" ? Math.floor(Date.now() / 30000) : 0]), () => this.renderAh());
+    if (this.ahWin.classList.contains("text-only")) this.renderAhText();
   }
 }

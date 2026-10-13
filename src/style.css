@@ -63,6 +63,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 .chat-line.notice { color: #9ce4ff; }
 .chat-line.system { color: #cfd8e3; }
 .chat-line.say { color: #fff; }
+.chat-line.say .chat-name { color: #ff9a3b; }
 .chat-input { position: relative; margin-top: 2px; }
 .chat-field { position: absolute; left: 8px; right: 8px; top: 4px; height: 17px; border: 0; outline: 0; background: transparent; color: #fff; font: 12px Arial; }
 .chat-field::placeholder { color: rgba(255,255,255,.5); }
@@ -146,6 +147,77 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 .buff { position: relative; width: 32px; height: 32px; background-position: center; background-repeat: no-repeat; image-rendering: pixelated; border-radius: 3px; overflow: hidden; }
 .buff-shade { position: absolute; left: 0; right: 0; top: 0; background: rgba(0,0,0,.45); pointer-events: none; }
 .buff-time { position: absolute; right: 1px; bottom: 0; z-index: 1; font: bold 10px Arial; color: #fff; text-shadow: 0 0 2px #000, 0 0 1px #000; }
+
+/* ---------- text-only panels ---------- */
+.win.text-only { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 320px; max-width: calc(100vw - 32px); height: auto; min-height: 120px; z-index: 17;
+  background: linear-gradient(#f7f7f7, #e9e9ee); border: 1px solid #3b1d4a; border-radius: 8px;
+  box-shadow: 0 0 0 2px #7c3e93 inset, 0 8px 24px rgba(0,0,0,.4);
+  display: flex; flex-direction: column; overflow: hidden; }
+.win.text-only .text-only-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; background: linear-gradient(#8e4aa8, #5a2670); color: #ffd43b; font: bold 10px Arial; letter-spacing: .5px; }
+.win.text-only .text-only-bar button { margin-left: auto; font: bold 9px Arial; padding: 2px 6px;
+  border: 1px solid #e6c9ff; border-radius: 3px; background: #fdfdfd; color: #5a2670; cursor: pointer; }
+.win.text-only .text-only-body { flex: 1; padding: 10px 12px; overflow-y: auto; font: 12px/1.5 Arial; color: #333; }
+.win.text-only .text-only-body h3 { font-size: 13px; margin-bottom: 6px; }
+.win.text-only .text-only-body .stat-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #e6e6ea; }
+.win.text-only .text-only-body .stat-row b { color: #5a2670; }
+.win.text-only .text-only-body .skill-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.win.text-only .text-only-body .skill-row .s-ic { width: 26px; height: 26px; background: center / contain no-repeat; image-rendering: pixelated; border: 1px solid #dcdce4; border-radius: 3px; }
+.win.text-only .text-only-body .skill-row .s-meta { flex: 1; min-width: 0; }
+.win.text-only .text-only-body .skill-row .s-name { font-weight: bold; }
+.win.text-only .text-only-body .skill-row .s-lv { color: #666; font-size: 11px; }
+.win.text-only .text-only-body .skill-row button { font: bold 9px Arial; padding: 2px 6px;
+  border: 1px solid #a8a8b8; border-radius: 3px; background: linear-gradient(#fdfdfd, #dcdce6); cursor: pointer; }
+.win.text-only .text-only-body .skill-row button:disabled { opacity: .5; cursor: default; }
+.win.text-only .text-only-body .skill-row button:enabled:hover { background: linear-gradient(#ffe7b8, #ffbe55); }
+.win.text-only .text-only-body .skill-row button:enabled:disabled + .s-lv { color: #c33; }
+.win.text-only .text-only-body .equip-grid { display: grid; grid-template-columns: repeat(3, 40px); gap: 4px; }
+.win.text-only .text-only-body .equip-slot { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; border: 1px solid #dcdce4; border-radius: 4px; cursor: pointer; }
+.win.text-only .text-only-body .equip-slot:hover { border-color: #f08a12; }
+.win.text-only .text-only-body .equip-slot .e-ic { width: 30px; height: 30px; background: center / contain no-repeat; image-rendering: pixelated; border-radius: 3px; }
+.win.text-only .text-only-body .equip-slot .e-name { font-size: 9px; color: #555; text-align: center; }
+.win.text-only .text-only-body .equip-slot .e-stats { font-size: 9px; color: #e09a00; }
+.win.text-only .text-only-body .equip-slot .e-ic { width: 30px; height: 30px; background: center / contain no-repeat; image-rendering: pixelated; border-radius: 3px; }
+.win.text-only .text-only-body .equip-slot .e-name { font-size: 10px; color: #555; text-align: center; }
+.win.text-only .text-only-body .equip-slot .e-stats { font-size: 9px; color: #777; }
+.win.text-only .text-only-body .inv-item { display: flex; align-items: center; gap: 5px; padding: 3px 4px; border-radius: 3px; cursor: pointer; }
+.win.text-only .text-only-body .inv-item:hover { background: #f4f4f8; }
+.win.text-only .text-only-body .inv-item .i-ic { width: 24px; height: 24px; background: center / contain no-repeat; image-rendering: pixelated; border-radius: 3px; }
+.win.text-only .text-only-body .inv-item .i-name { flex: 1; font-size: 11px; }
+.win.text-only .text-only-body .inv-item .i-count { font-size: 10px; color: #666; }
+.win.text-only .text-only-body .craft-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.win.text-only .text-only-body .craft-row .c-ic { width: 28px; height: 28px; background: center / contain no-repeat; image-rendering: pixelated; border-radius: 3px; }
+.win.text-only .text-only-body .craft-row button { font: bold 9px Arial; padding: 3px 8px; border: 1px solid #a8a8b8; border-radius: 3px; background: linear-gradient(#fdfdfd, #dcdce6); cursor: pointer; }
+.win.text-only .text-only-body .craft-row button:disabled { opacity: .5; cursor: default; }
+.win.text-only .text-only-body .craft-row button:enabled:hover { background: linear-gradient(#ffe7b8, #ffbe55); }
+.win.text-only .text-only-body .ah-row { display: flex; align-items: center; gap: 8px; padding: 3px 4px; border-radius: 3px; }
+.win.text-only .text-only-body .ah-row:hover { background: #f4f4f8; }
+.win.text-only .text-only-body .ah-row .a-ic { width: 26px; height: 26px; background: center / contain no-repeat; image-rendering: pixelated; border-radius: 3px; }
+.win.text-only .text-only-body .ah-row .a-price { font-weight: bold; color: #b06a00; }
+.win.text-only .text-only-body .ah-row button { font: bold 9px Arial; padding: 3px 8px; border: 1px solid #a8a8b8; border-radius: 3px; background: linear-gradient(#fdfdfd, #dcdce6); cursor: pointer; }
+.win.text-only .text-only-body .ah-row button:disabled { opacity: .5; cursor: default; }
+.win.text-only .text-only-body .ah-row button:enabled:hover { background: linear-gradient(#ffe7b8, #ffbe55); }
+
+/* ---------- transient logs (right side) ---------- */
+.logs { position: absolute; right: 8px; top: 8px; width: 210px; max-height: 190px; overflow-y: auto;
+  display: flex; flex-direction: column-reverse; gap: 3px; pointer-events: none; z-index: 16;
+  padding: 6px 8px; background: rgba(12, 16, 24, .55); border-radius: 6px; font: 11px/14px Arial; }
+.log-line { color: #cdd6e0; text-shadow: 0 1px 0 #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-line.exp { color: #ffe98a; }
+.log-line.meso { color: #7dff6b; }
+.log-line.level { color: #ffef5a; }
+.log-line.notice { color: #9ce4ff; }
+.log-line.system { color: #aeb8c4; }
+.log-line.say { color: #fff; }
+
+/* ---------- floating gain counters (bottom right, no background) ---------- */
+.gains { position: fixed; z-index: 120; display: flex; flex-direction: column; gap: 6px; pointer-events: none; font: bold 14px/1.2 Arial; color: #fff; text-shadow: 0 1px 2px #000; }
+.gain { padding: 4px 10px; border-radius: 4px; animation: gainpop .5s cubic-bezier(.2,.9,.3,1.2); }
+.gain-exp { color: #ffe98a; }
+.gain-meso { color: #7dff6b; }
+.gain-level { color: #ff9ad0; }
+@keyframes gainpop { 0% { transform: translateY(0) scale(.8); opacity: 0; } 60% { transform: translateY(-12px) scale(1.05); opacity: 1; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
 
 /* ---------- chat balloon ---------- */
 .balloon { position: absolute; left: 0; top: 0; margin-top: -13px; pointer-events: none; }

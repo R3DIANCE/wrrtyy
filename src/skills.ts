@@ -41,7 +41,7 @@ export const SKILL_DEFS: SkillDef[] = [
   { id: "1001005", kind: "attack", tab: 1, reqLevel: 1, maxLevel: 20, mp: (l) => 8 + Math.floor(l / 4), dmg: (l) => 100 + l * 5, hits: 1, targets: 6, range: 170,
     summary: (l) => `Attacks up to 6 enemies in front of you. Damage ${100 + l * 5}%.` },
   { id: "1001008", kind: "move", tab: 1, reqLevel: 1, maxLevel: 10, mp: (l) => Math.max(2, 6 - Math.floor(l / 2)),
-    summary: (l) => `Jump again in mid-air. Distance +${l * 4}%.` },
+    summary: (l) => `Launch much farther horizontally while in the air. Range +${l * 12}%.` },
   { id: "1000003", kind: "passive", tab: 1, reqLevel: 1, maxLevel: 10,  mp: () => 0,
     summary: (l) => `Permanently reduces damage taken by ${l * 2}%.` },
   { id: "1000009", kind: "passive", tab: 1, reqLevel: 1, maxLevel: 10, mp: () => 0,

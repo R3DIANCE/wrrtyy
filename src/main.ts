@@ -94,7 +94,12 @@ async function start() {
     const src = m.bgmUrl;
     if (bgm.src !== src) { bgm.src = src; bgm.play().catch(() => {}); }
   };
-  game.onChat = (k, t) => hud?.addChat(k, t);
+  game.onChat = (k, t) => {
+    const transient = new Set(["exp", "meso", "level", "item", "notice", "system"]);
+    if (transient.has(k)) hud?.wins.pushLog(k, t); else hud?.addChat(k, t);
+  };
+  game.onGain = (k, t) => hud?.showGain(k, t);
+  game.onLog = (k, t) => hud?.wins.pushLog(k, t);
   const name = game.stats.name;
   if (saved?.stats?.name === name) game.restore(saved);
   await game.init(saved?.stats?.name === name && saved.map ? saved.map : 100010000);
@@ -128,7 +133,7 @@ function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (running && !manual) game.update(dt);
-  if (running) { game.draw(); hud?.update(); }
+  if (running) { game.draw(); hud?.update(dt); }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -139,7 +144,7 @@ window.advanceTime = (ms: number) => {
   manual = true;
   const n = Math.max(1, Math.round(ms / (1000 / 60)));
   for (let i = 0; i < n; i++) game.update(1 / 60);
-  game.draw(); hud?.update();
+  game.draw(); hud?.update(1 / 60);
 };
 window.render_game_to_text = () => JSON.stringify({
   coords: "MapleStory world px, +y down",

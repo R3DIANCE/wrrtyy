@@ -83,6 +83,8 @@ export class Game {
   loadingMap = false;
   fade = 1;
   onChat: (kind: ChatKind, text: string) => void = () => {};
+  onLog: (kind: ChatKind, text: string) => void = () => {};
+  onGain: (kind: "level" | "meso" | "exp", text: string) => void = () => {};
   onMapChange: (m: MapData) => void = () => {};
 
   stats: Stats = {
@@ -353,7 +355,9 @@ export class Game {
     if (d.kind === "move") {
       if (p.fh || p.ladder || p.leapt || s.mp < cost) return false;
       s.mp -= cost; p.leapt = true;
-      p.vy = -JUMP * 0.7; p.vx = p.face * this.speed() * (1.9 + lv * 0.04);
+      // War Leap: a much longer horizontal launch that grows with level.
+      p.vy = -JUMP * 0.55;
+      p.vx = p.face * this.speed() * (1.6 + lv * 0.12);
       return true;
     }
     return this.startAttack(a.id);
@@ -392,7 +396,7 @@ export class Game {
     else if (this.auto.boss && this.bossReady() && !this.p.ladder) this.challengeBoss();
     if (this.auto.battle) { this.idle.autoTime += dt; if (this.idle.autoTime > 120) { this.idle.killRate = this.idle.autoKills / this.idle.autoTime; } if (this.idle.autoTime > 1800) { this.idle.autoTime /= 2; this.idle.autoKills /= 2; } }
     this.ahT = (this.ahT ?? 0) + dt;
-    if (this.ahT > 5) { const sold = this.ah.tick(Date.now(), this.ahT); this.ahT = 0; if (sold) { this.onChat("meso", `Auction House: your ${goodsName(sold.goods)} sold for ${sold.price.toLocaleString()} mesos! Collect it in the Auction House (H).`); this.onChange(); } }
+    if (this.ahT > 5) { const sold = this.ah.tick(Date.now(), this.ahT); this.ahT = 0; if (sold) { this.onGain("meso", `Auction House: your ${goodsName(sold.goods)} sold for ${sold.price.toLocaleString()} mesos!`); this.onChat("system", `Auction House: your ${goodsName(sold.goods)} sold for ${sold.price.toLocaleString()} mesos! Collect it in the Auction House (H).`); this.onChange(); } }
     for (const m of this.mobs) this.updateMob(m, dt);
     this.updateDrops(dt);
     for (const f of this.fx) f.t += dt * 1000;
@@ -588,7 +592,7 @@ export class Game {
             this.onChat("item", `You have gained an item (${ITEMS[d.item]?.name ?? d.item})`);
           } else {
             s.meso += d.amount;
-            this.onChat("meso", `You have gained mesos (+${d.amount})`);
+            this.onGain("meso", `You have gained mesos (+${d.amount})`);
           }
           this.onChange();
           break;
@@ -789,7 +793,7 @@ export class Game {
   gainExp(n: number) {
     const s = this.stats;
     s.exp += n;
-    this.onChat("exp", `You have gained experience (+${n})`);
+    this.onGain("exp", `You have gained experience (+${n})`);
     while (s.exp >= expToLevel(s.level)) {
       s.exp -= expToLevel(s.level);
       s.level++;
@@ -803,7 +807,7 @@ export class Game {
       if (s.job !== oldJob) this.onChat("level", `You have advanced to ${s.job}! New skills are available in the Skill window (K).`);
       this.onChange();
       this.fx.push({ frames: this.fxData.levelUp, x: this.p.x, y: this.p.y, flip: false, t: 0, follow: true });
-      this.onChat("level", `Congratulations! You have reached Level ${s.level}.`);
+      this.onGain("level", `Congratulations! You have reached Level ${s.level}.`);
     }
   }
 
@@ -971,7 +975,7 @@ export class Game {
     if (i < 0) return;
     const g = this.bag[i], price = npcSellPrice(g);
     this.bag.splice(i, 1); this.stats.meso += price;
-    this.onChat("meso", `Sold ${GEAR.get(g.id)?.name} for ${price.toLocaleString()} mesos.`);
+    this.onGain("meso", `Sold ${GEAR.get(g.id)?.name} for ${price.toLocaleString()} mesos.`);
     this.onChange();
   }
   sellJunk() {
@@ -980,7 +984,7 @@ export class Game {
     for (const g of junk) total += npcSellPrice(g);
     this.bag = this.bag.filter((g) => !junk.includes(g));
     this.stats.meso += total;
-    this.onChat("meso", junk.length ? `Sold ${junk.length} Normal items for ${total.toLocaleString()} mesos.` : "No Normal-grade items to sell.");
+    this.onGain("meso", junk.length ? `Sold ${junk.length} Normal items for ${total.toLocaleString()} mesos.` : "No Normal-grade items to sell.");
     this.onChange();
   }
   findGear(uid: string) { return this.bag.find((g) => g.uid === uid) ?? Object.values(this.eq).find((g) => g?.uid === uid) ?? null; }
@@ -1073,7 +1077,7 @@ export class Game {
     const i = this.ah.mine.findIndex((m) => m.lid === lid);
     if (i < 0) return;
     const m = this.ah.mine[i];
-    if (m.sold) { const net = Math.floor(m.price * (1 - AH_TAX)); this.stats.meso += net; this.onChat("meso", `Collected ${net.toLocaleString()} mesos from the Auction House.`); }
+    if (m.sold) { const net = Math.floor(m.price * (1 - AH_TAX)); this.stats.meso += net; this.onGain("meso", `Collected ${net.toLocaleString()} mesos from the Auction House.`); }
     else { this.receive(m.goods); this.onChat("system", `Cancelled your listing for ${goodsName(m.goods)}.`); }
     this.ah.mine.splice(i, 1);
     this.onChange();

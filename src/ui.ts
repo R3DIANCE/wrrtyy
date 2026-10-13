@@ -69,6 +69,8 @@ export class Hud {
   mini!: HTMLElement; miniImg!: HTMLElement; miniDot!: HTMLElement; miniName!: HTMLElement; miniStreet!: HTMLElement; miniMark!: HTMLElement; miniPortals: HTMLElement[] = [];
   nameTag: HTMLElement;
   meso!: HTMLElement;
+  gain!: HTMLElement;
+  lastLevel = 0; lastMeso = 0; lastExp = 0;
   last = "";
   miniScale = 1;
   miniInfo: MapData["miniMap"] | null = null;
@@ -86,6 +88,7 @@ export class Hud {
     this.buildMenu();
     this.buildChat();
     this.buildMinimap();
+    this.buildGains();
     this.layout();
     addEventListener("resize", () => this.layout());
   }
@@ -257,9 +260,50 @@ export class Hud {
     return [((x + mm.centerX) / mm.mag) * this.miniScale, ((y + mm.centerY) / mm.mag) * this.miniScale];
   }
 
+  // ------------------------------------------------------------- floating gain counters (bottom right)
+  buildGains() {
+    this.gain = el("div", "gains", this.root);
+    this.gain.style.display = "none";
+  }
+  /** Shows a floating counter for level / meso / exp gains at the bottom right, no background. */
+  showGain(kind: "level" | "meso" | "exp", text: string) {
+    const g = this.gain;
+    g.style.display = "";
+    const line = el("div", `gain gain-${kind}`, g);
+    line.textContent = text;
+    g.textContent = "";
+    g.appendChild(line);
+    const r = g.getBoundingClientRect();
+    g.style.left = `${Math.min(innerWidth - r.width - 4, r.right + 12)}px`;
+    g.style.top = `${Math.max(4, Math.min(innerHeight - r.height - 4, r.bottom + 12))}px`;
+    g.style.transform = "translateY(0)";
+    requestAnimationFrame(() => { g.style.transition = "transform .5s cubic-bezier(.2,.9,.3,1.2)"; g.style.transform = "translateY(-14px)"; });
+    setTimeout(() => { g.style.transition = "opacity .5s, transform .5s"; g.style.transform = "translateY(0)"; g.style.opacity = "0"; }, 400);
+    setTimeout(() => { g.style.display = "none"; }, 1000);
+  }
+
   addChat(kind: ChatKind | "say", text: string) {
     const line = el("div", `chat-line ${kind}`, this.chatLog);
-    line.textContent = text;
+    if (kind === "say") {
+      const m = text.match(/^([A-Za-z][A-Za-z ]{0,11})\s*:/);
+      if (m) {
+        const name = m[1], rest = text.slice(m[0].length);
+        const wrap = el("span", "", line);
+        const n = el("b", "chat-name", wrap); n.textContent = name;
+        const t = el("span", "", wrap); t.textContent = rest;
+        line.dataset.text = rest;
+      }
+    }
+    const dismiss = kind !== "say" && kind !== "notice";
+    if (dismiss) {
+      line.dataset.dismiss = String(performance.now() + 4500);
+      const check = () => {
+        const d = Number(line.dataset.dismiss);
+        if (performance.now() >= d) line.remove();
+        else requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    }
     while (this.chatLog.children.length > 60) this.chatLog.firstChild?.remove();
     this.chatLog.scrollTop = this.chatLog.scrollHeight;
   }
@@ -309,7 +353,7 @@ export class Hud {
     this.last = "";
   }
 
-  update() {
+  update(dt: number) {
     const g = this.game, s = g.stats, u = this.ui;
     const need = Math.round(expToLevel(s.level));
     const key = `${s.level}|${s.hp}|${s.maxHp}|${s.mp}|${s.maxMp}|${s.exp}|${s.name}`;
@@ -332,7 +376,7 @@ export class Hud {
     this.nameTag.textContent = s.name;
     this.nameTag.style.transform = `translate(${nx}px, ${ny}px) translateX(-50%)`;
     this.wins.renderBalloon(nx, Math.round(p.y - g.cam.y - 78));
-    this.wins.update();
+    this.wins.update(dt);
     if (this.miniInfo && this.miniDot) {
       const [x, y] = this.miniPos(p.x, p.y);
       this.miniDot.style.transform = `translate(${x}px, ${y}px)`;

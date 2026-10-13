@@ -1,13 +1,15 @@
 // Quick slots (drag/drop), Stat / Skill / Item / Auto windows, buff bar, tooltips and chat balloon.
 import { ExtWindows } from "./windows2.ts";
 import type { Sprite } from "./assets.ts";
-import type { Game } from "./game.ts";
+import { expToLevel } from "./game.ts";
+import type { Game, ChatKind } from "./game.ts";
 import {
   ITEMS, JOB_TABS, KEY_LABEL, QUICK_KEYS, SKILL, SKILL_DEFS, TAB_LEVEL, WEAPON_ICON,
   cleanDesc, itemIcon, type Action,
 } from "./skills.ts";
 
 type Btn = Record<"normal" | "mouseOver" | "pressed" | "disabled", Sprite | null>;
+const fmt = (n: number) => Math.round(n).toLocaleString();
 
 export function el(tag: string, cls = "", parent?: HTMLElement): HTMLElement {
   const e = document.createElement(tag);
@@ -72,6 +74,9 @@ export class Windows {
   lastQuick = ""; lastStat = ""; lastSkill = ""; lastItem = ""; lastBuffs = "";
   statFields: Record<string, HTMLElement> = {};
   statBtns: { setDisabled(d: boolean): void }[] = [];
+  logs!: HTMLElement;
+  logLines: HTMLElement[] = [];
+  logTimer = 0;
 
   constructor(public game: Game, public win: any, public hudRoot: HTMLElement) {
     this.layer = el("div", "win-layer", document.body);
@@ -85,6 +90,7 @@ export class Windows {
     this.autoBtn.title = "Toggle auto battle (B). Right-click for settings.";
     this.autoBtn.addEventListener("click", () => this.toggleAutoBattle());
     this.autoBtn.addEventListener("contextmenu", (e) => { e.preventDefault(); this.toggle(this.autoWin); });
+    this.buildLogs();
     this.buildStat();
     this.buildSkill();
     this.buildAuto();
@@ -128,8 +134,20 @@ export class Windows {
   }
 
   toggle(w: HTMLElement) {
+    if (w === this.stat) { this.renderStatText(); this.toggleTextOnly(this.stat, "Character"); return; }
+    if (w === this.skill) { this.renderSkillText(); this.toggleTextOnly(this.skill, "Skills"); return; }
     w.classList.toggle("hidden");
     if (!w.classList.contains("hidden")) { w.style.zIndex = String(++this.z); this.lastStat = this.lastSkill = this.lastItem = ""; }
+  }
+
+  /** Toggles a panel between full (sprite) mode and a compact text-only strip. */
+  toggleTextOnly(w: HTMLElement, text: string) {
+    const on = w.classList.contains("text-only");
+    w.classList.toggle("text-only", !on);
+    w.classList.toggle("hidden", on);
+    if (!on) { w.style.zIndex = String(++this.z); this.lastStat = this.lastSkill = this.lastItem = ""; }
+    const t = w.querySelector(".text-only-text") as HTMLElement;
+    if (t) t.textContent = text;
   }
   closeTop() {
     const open = [...this.layer.querySelectorAll<HTMLElement>(".win:not(.hidden)")].sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex));
@@ -314,6 +332,34 @@ export class Windows {
     f.ap.textContent = String(s.ap);
     for (const b of this.statBtns) b.setDisabled(s.ap <= 0);
   }
+  renderStatText() {
+    if (!this.stat.classList.contains("text-only")) return;
+    const g = this.game, s = g.stats;
+    const [lo, hi] = g.damageRange();
+    const bonus = g.lv("1100009") * 4;
+    const body = this.stat.querySelector(".text-only-body") as HTMLElement;
+    body.innerHTML = `<h3>${s.name} — ${s.job}</h3>
+      <div class="stat-row"><span>Level</span><b>${s.level}</b></div>
+      <div class="stat-row"><span>EXP</span><b>${Math.round(expToLevel(s.level))}</b></div>
+      <div class="stat-row"><span>HP</span><b>${s.hp} / ${s.maxHp}</b></div>
+      <div class="stat-row"><span>MP</span><b>${s.mp} / ${s.maxMp}</b></div>
+      <div class="stat-row"><span>Mesos</span><b>${fmt(s.meso)}</b></div>
+      <div class="stat-row"><span>STR</span><b>${bonus ? s.str + bonus : s.str}${bonus ? ` (+${bonus})` : ""}</b></div>
+      <div class="stat-row"><span>DEX</span><b>${bonus ? s.dex + bonus : s.dex}${bonus ? ` (+${bonus})` : ""}</b></div>
+      <div class="stat-row"><span>INT</span><b>${s.int}</b></div>
+      <div class="stat-row"><span>LUK</span><b>${s.luk}</b></div>
+      <div class="stat-row"><span>AP</span><b>${s.ap}</b></div>
+      <div class="stat-row"><span>Auto-assign</span><button data-a="auto" ${s.ap <= 0 ? "disabled" : ""}>Use all</button></div>
+      <div class="stat-row"><span>Raise STR</span><button data-a="str" ${s.ap <= 0 ? "disabled" : ""}>+</button></div>
+      <div class="stat-row"><span>Raise DEX</span><button data-a="dex" ${s.ap <= 0 ? "disabled" : ""}>+</button></div>
+      <div class="stat-row"><span>Raise INT</span><button data-a="int" ${s.ap <= 0 ? "disabled" : ""}>+</button></div>
+      <div class="stat-row"><span>Raise LUK</span><button data-a="luk" ${s.ap <= 0 ? "disabled" : ""}>+</button></div>`;
+    body.querySelectorAll("button[data-a]").forEach((b) => b.addEventListener("click", () => {
+      const a = (b as HTMLElement).dataset.a!;
+      if (a === "auto") g.autoAssign(); else g.addStat(a as "str" | "dex" | "int" | "luk");
+      this.toggleTextOnly(this.stat, "Character");
+    }));
+  }
 
   // ------------------------------------------------------------- skill window
   buildSkill() {
@@ -374,6 +420,28 @@ export class Windows {
     const sp = w.querySelector(".skill-sp") as HTMLElement;
     sp.innerHTML = `SKILL POINT <b>${g.stats.sp}</b>`;
   }
+  renderSkillText() {
+    if (!this.skill.classList.contains("text-only")) return;
+    const g = this.game;
+    const body = this.skill.querySelector(".text-only-body") as HTMLElement;
+    const rows = JOB_TABS.map((name, i) => {
+      const defs = SKILL_DEFS.filter((d) => d.tab === i);
+      if (!defs.length) return "";
+      return `<div class="skill-row"><span class="s-name">${name}</span><span class="s-lv">Unlocks Lv.${TAB_LEVEL[i]}</span></div>` +
+        defs.map((d) => {
+          const lv = g.lv(d.id), art = g.skillArt[d.id];
+          const usable = g.stats.level >= d.reqLevel;
+          const learnBtn = d.kind === "passive" ? "" : `<button data-l="${d.id}" ${g.canLearn(d.id) ? "" : "disabled"}>Learn</button>`;
+          return `<div class="skill-row"><span class="s-ic" style="background-image:url('${art?.icon?.url ?? ""}')"></span>
+            <span class="s-meta"><span class="s-name">${art?.name ?? d.id}</span><span class="s-lv">${lv} / ${d.maxLevel}${d.kind === "passive" ? " · Passive" : ""}</span></span>
+            ${learnBtn}</div>`;
+        }).join("");
+    }).join("");
+    body.innerHTML = `<h3>Skills</h3>${rows}`;
+    body.querySelectorAll("button[data-l]").forEach((b) => b.addEventListener("click", () => {
+      if (g.learn((b as HTMLElement).dataset.l!)) this.lastSkill = "";
+    }));
+  }
 
   // ------------------------------------------------------------- auto settings
   buildAuto() {
@@ -414,6 +482,39 @@ export class Windows {
       if (confirm("Delete this character's saved progress and start over?")) { localStorage.removeItem("maple-wayfarer-save"); location.reload(); }
     });
     (w as any)._sync = () => { battle.checked = a.battle; };
+  }
+
+  // ------------------------------------------------------------- transient logs (right side)
+  buildLogs() {
+    const box = el("div", "logs hidden", this.hudRoot);
+    box.title = "Transient activity log. Click to dismiss.";
+    this.logs = box;
+    for (let i = 0; i < 12; i++) {
+      const line = el("div", "log-line", box);
+      line.textContent = "";
+      this.logLines.push(line);
+    }
+  }
+  /** Pushes a transient message into the right-side log; it fades out over time. */
+  pushLog(kind: ChatKind, text: string) {
+    const line = el("div", `log-line ${kind}`, this.logs);
+    line.textContent = text;
+    this.logs.classList.remove("hidden");
+    this.logLines.push(line);
+    if (this.logLines.length > 12) this.logLines[0]?.remove();
+  }
+  renderLogs(dt: number) {
+    if (!this.logs.classList.contains("hidden")) {
+      this.logTimer += dt;
+      for (const l of this.logLines) {
+        const t = l.dataset.t;
+        if (t) {
+          const fade = Math.max(0, 1 - (this.logTimer - Number(t)) / 4);
+          l.style.opacity = String(fade);
+          if (fade <= 0) { l.remove(); l.dataset.t = ""; }
+        }
+      }
+    }
   }
 
   // ------------------------------------------------------------- buff bar
@@ -471,12 +572,13 @@ export class Windows {
     this.balloon.style.transform = `translate(${px}px, ${py}px) translate(-50%, -100%)`;
   }
 
-  update() {
+  update(dt: number) {
     this.renderQuick();
     this.renderStat();
     this.renderSkill();
     this.ext.update();
     this.renderBuffs();
+    this.renderLogs(dt);
     const on = this.game.auto.battle;
     this.autoBtn.classList.toggle("on", on);
     (this.autoWin as any)._sync?.();
