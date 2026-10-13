@@ -8,7 +8,7 @@ A fan-made MapleStory-style side-scrolling platformer built with **Bun** and **W
 - Real MapleStory maps, parallax backgrounds, footholds, ladders and ropes, read from map data
 - Orange Mushrooms, Green Mushrooms and Slimes with AI, hit/die animations and respawns
 - **4 playable classes**: Warrior (STR), Magician (INT), Bowman (DEX) and Thief (LUK) — pick your class on the title screen; each class has its own skill tabs, starting stats, first skill and default hotbar
-- 33 real skills across all 4 classes with Beginner / 1st / 2nd / 3rd job tabs (Slash Blast, Brandish, Intrepid Slash, Magic Guard, Magic Claw, Energy Bolt, Flame Orb, Arrow Blow, Double Shot, Wind Arrow, Dark Sight, Haste, Shuriken Burst and more), learned with SP
+- 47 real skills across all 4 classes with Beginner / 1st / 2nd / 3rd job tabs (Slash Blast, Brandish, Intrepid Slash, Magic Guard, Magic Claw, Energy Bolt, Flame Orb, Arrow Blow, Double Shot, Wind Arrow, Dark Sight, Haste, Shuriken Burst, Avenger, Triple Throw, Holy Arrow, Angelic Wrath and more), learned with SP
 - Base stats (STR/DEX/INT/LUK) with Ability Points, class-aware damage formula, damage range, mastery and accuracy
 - Real v270 Character Stats and Skill windows, item inventory, buff bar with timers, tooltips
 - Quick slots: drag skills/items in, drag between slots to swap, drag off or right-click to remove
