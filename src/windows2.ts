@@ -1,6 +1,7 @@
 // Idle-RPG windows: Equipment, Inventory, Crafting, Auction House, stage/boss HUD, offline rewards and the main menu.
 import { AH_TAX, goodsName, goodsValue, type Goods } from "./auction.ts";
 import { charUrlFor } from "./game.ts";
+import { ItemBrowser } from "./item-browser.ts";
 import {
   GEAR, MATS, MAX_STAR, POT_LABEL, RARITY, RARITY_COLOR, RARITY_INK, SLOTS, SLOT_NAME, cubeCost, gearIcon, gearStats, gearValue, matIcon,
   npcSellPrice, recipeGearId, recipes, starCost, starMat, starRate, type Gear, type Recipe, type Slot,
@@ -19,6 +20,7 @@ type Tab<T extends string> = { cur: T };
 export class ExtWindows {
   equipWin: HTMLElement; invWin: HTMLElement; craftWin: HTMLElement; ahWin: HTMLElement; menuPop: HTMLElement;
   stageHud: HTMLElement; bossBar: HTMLElement; offline: HTMLElement | null = null;
+  items: ItemBrowser;
   tips = new Map<string, () => string>();
   sig: Record<string, string> = {};
   invTab: Tab<"equip" | "use" | "etc"> = { cur: "equip" };
@@ -34,7 +36,7 @@ export class ExtWindows {
     // The real MapleStory equip panel background is 184×290; we lay our socket
     // columns out beside it with the stats block underneath, so the window is
     // wider than the raw sprite but keeps its MapleStory chrome.
-    this.equipWin = w.makeWindow("equip-win", 350, 460, "EQUIPMENT", 40, 50);
+    this.equipWin = w.makeWindow("equip-win", 350, 440, "EQUIPMENT", 40, 60);
     this.invWin = w.makeWindow("inv-win", 222, 318, "ITEM INVENTORY", innerWidth - 470, 110);
     this.craftWin = w.makeWindow("craft-win", 340, 380, "CRAFTING", innerWidth / 2 - 170, 80);
     this.ahWin = w.makeWindow("ah-win", 440, 400, "AUCTION HOUSE", innerWidth / 2 - 220, 70);
@@ -53,9 +55,11 @@ export class ExtWindows {
     w.item = this.invWin;
 
     this.menuPop = el("div", "menu-pop hidden", document.body);
+    this.items = new ItemBrowser(w);
     const entries: [string, string, () => void][] = [
       ["Character Stats", "S", () => w.toggle(w.stat)], ["Skills", "K", () => w.toggle(w.skill)], ["Equipment", "E", () => this.open("equip")],
       ["Inventory", "I", () => this.open("inv")], ["Crafting", "J", () => this.open("craft")], ["Auction House", "H", () => this.open("ah")],
+      ["All Items", "L", () => this.items.open()],
       ["Auto Settings", "B·RMB", () => w.toggle(w.autoWin)],
     ];
     for (const [label, key, fn] of entries) {
@@ -82,16 +86,11 @@ export class ExtWindows {
     // Panels open in full (sprite) mode; the compact text-only mode is available
     // as a secondary view via the window's own toggle, not forced on open.
     win.classList.remove("text-only");
-    if (wasHidden) {
-      if (k === "equip") this.renderEquip();
-      else if (k === "inv") this.renderInv();
-      else if (k === "craft") this.renderCraft();
-      else this.renderAh();
-      win.classList.remove("hidden");
-      win.style.zIndex = String(++this.w.z);
-    } else {
-      win.classList.add("hidden");
-    }
+    if (k === "equip") this.renderEquip();
+    else if (k === "inv") this.renderInv();
+    else if (k === "craft") this.renderCraft();
+    else this.renderAh();
+    if (wasHidden) win.classList.remove("hidden");
     this.sig = {};
   }
   toggleMenu(anchor: HTMLElement) {
@@ -176,29 +175,28 @@ export class ExtWindows {
   renderEquip() {
     const g = this.w.game, gt = g.gt;
     const body = this.equipWin.querySelector(".x-body") as HTMLElement;
-    // Real MapleStory equip panel: two side columns of sockets flanking the
-    // character preview (which uses the real UIWindow2 Equip/character background).
-    const leftSlots: Slot[] = ["hat", "earrings", "ring1", "pendant", "weapon"];
-    const rightA: Slot[] = ["cape", "gloves", "shoes", "ring2", "ring3", "ring4", "shield"];
-    const rightB: Slot[] = ["top", "bottom", "shoulder", "belt", "pocket", "emblem", "badge"];
+    // KMS 2026: accessories on the left, armor on the right, character in the middle.
+    const leftAcc: Slot[] = ["ring1", "ring2", "ring3", "ring4", "earrings", "pendant"];
+    const leftAcc2: Slot[] = ["hat", "top", "bottom", "shoes"];
+    const rightArm: Slot[] = ["weapon", "shield", "cape", "gloves", "shoulder"];
+    const rightArm2: Slot[] = ["belt", "pocket", "emblem", "badge"];
     const cellFor = (s: Slot) => {
       const it = g.eq[s];
       if (!it) return `<div class="eslot empty" title="${SLOT_NAME[s]}"><span>${SLOT_NAME[s]}</span></div>`;
       return `<div class="eslot" data-slot="${s}">${this.gearCell(it, "unequip", "Click to unequip", `data-slot="${s}"`)}</div>`;
     };
-    const E = this.w.win.equip;
-    const bgUrl = E?.backgrnd?.url ?? "";
-    let cells = `<div class="e-left-col">${leftSlots.map(cellFor).join("")}</div>`;
-    cells += `<div class="eprev" ${bgUrl ? `style="background-image:url('${bgUrl}')"` : ""}><img alt="Character preview" src="${charUrlFor(g.look, "stand1", 0)}"></div>`;
-    cells += `<div class="e-right-col">${rightA.map(cellFor).join("")}</div>`;
-    cells += `<div class="e-right-col">${rightB.map(cellFor).join("")}</div>`;
+    let cells = `<div class="e-left-col">${leftAcc.map(cellFor).join("")}</div>`;
+    cells += `<div class="e-left-col">${leftAcc2.map(cellFor).join("")}</div>`;
+    cells += `<div class="eprev"><img alt="Character preview" src="${charUrlFor(g.look, "stand1", 0)}"></div>`;
+    cells += `<div class="e-right-col">${rightArm.map(cellFor).join("")}</div>`;
+    cells += `<div class="e-right-col">${rightArm2.map(cellFor).join("")}</div>`;
     const [lo, hi] = g.damageRange();
     const row = (k: string, v: string) => `<div class="erow"><span>${k}</span><b>${v}</b></div>`;
     body.innerHTML = `<div class="egrid-new">${cells}</div>
       <div class="ecp"><small>COMBAT POWER</small><b>${fmt(g.combatPower())}</b></div>
       <div class="estats">${row("Damage", `${fmt(lo)} ~ ${fmt(hi)}`)}${row("ATT", fmt(g.watk()))}${row("STR", fmt(g.totalStr()))}${row("DEX", fmt(g.totalDex()))}${row("INT", fmt(g.totalInt()))}${row("LUK", fmt(g.totalLuk()))}
       ${row("Max HP", fmt(g.stats.maxHp))}${row("DEF", fmt(gt.def))}${row("Boss Dmg", `${gt.boss}%`)}${row("EXP / Meso / Drop", `+${gt.exp}% / +${gt.meso}% / +${gt.drop}%`)}</div>
-      <p class="ehint">Click a piece to unequip it. Equip from the Inventory (I). Rings stack across four sockets.</p>`;
+      <p class="ehint">Click a piece to unequip it. Equip from the Inventory (I). Rings, pendants and badges stack in multiple sockets.</p>`;
   }
 
   // ------------------------------------------------------------- inventory

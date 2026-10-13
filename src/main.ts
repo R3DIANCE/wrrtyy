@@ -5,6 +5,7 @@ import type { ChatKind } from "./game.ts";
 import { Renderer } from "./gpu.ts";
 import { Hud } from "./ui.ts";
 import { CLASSES, QUICK_KEYS, type ClassId } from "./skills.ts";
+import { warmCache } from "./item-browser.ts";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const title = document.getElementById("title")!;
@@ -61,6 +62,7 @@ addEventListener("keydown", (e: KeyboardEvent) => {
     else if (k === "e") w.ext.open("equip");
     else if (k === "j") w.ext.open("craft");
     else if (k === "h") w.ext.open("ah");
+    else if (k === "l") w.ext.items.open();
     else if (k === "b") w.toggleAutoBattle();
   }
   if (!game.keys.has(k)) game.pressed.add(k);
@@ -124,10 +126,11 @@ async function start() {
   hud = new Hud(ui, game, win);
   hud.setMap(game.map);
   hud.addChat("system", "Arrows move · Alt/C/Space jump · Ctrl/X attack · Shift, Ins, Home, PgUp skills · Del/End potions · Z loot · Up at a portal");
-  hud.addChat("system", "S stats · K skills · E equipment · I inventory · J crafting · H auction house · B auto battle · Enter chat. Drag icons onto the quick slots; drag off or right-click to remove.");
+  hud.addChat("system", "S stats · K skills · E equipment · I inventory · J crafting · H auction house · L all items · B auto battle · Enter chat. Drag icons onto the quick slots; drag off or right-click to remove.");
   hud.addChat("notice", `Stage ${game.stage.n}: defeat ${game.stageNeed} monsters to summon the stage boss. Bosses drop rare gear and crafting materials.`);
   if (hasSave && saved.savedAt) game.offlineRewards(saved.savedAt);
   game.ah.refresh(Date.now());
+  warmCache(); // re-warm the /assets/ cache for icons seen in a previous session
   const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(game.save())); } catch {} };
   let saveT = 0;
   game.onChange = () => { clearTimeout(saveT); saveT = setTimeout(persist, 800) as unknown as number; };

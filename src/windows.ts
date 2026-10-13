@@ -3,6 +3,7 @@ import { ExtWindows } from "./windows2.ts";
 import type { Sprite } from "./assets.ts";
 import { expToLevel } from "./game.ts";
 import type { Game, ChatKind } from "./game.ts";
+import { cacheAsset } from "./item-browser.ts";
 import {
   ITEMS, JOB_TABS, KEY_LABEL, QUICK_KEYS, SKILL, SKILL_DEFS, TAB_LEVEL, WEAPON_ICON,
   cleanDesc, itemIcon, type Action,
@@ -22,10 +23,10 @@ const okSrc = new Map<string, string>();
 /** Sets a background image, retrying with a cache-buster (maplestory.io sometimes returns 5xx). */
 export function bg(e: HTMLElement, url: string, attempt = 0) {
   const known = okSrc.get(url);
-  if (known) { e.style.backgroundImage = `url("${known}")`; return; }
+  if (known) { e.style.backgroundImage = `url("${known}")`; cacheAsset(url); return; }
   const src = attempt ? `${url}${url.includes("?") ? "&" : "?"}retry=${attempt}` : url;
   const img = new Image();
-  img.onload = () => { okSrc.set(url, src); e.style.backgroundImage = `url("${src}")`; };
+  img.onload = () => { okSrc.set(url, src); e.style.backgroundImage = `url("${src}")`; cacheAsset(url); };
   img.onerror = () => { if (attempt < 4) setTimeout(() => bg(e, url, attempt + 1), 700 * (attempt + 1)); };
   img.src = src;
 }
@@ -111,25 +112,39 @@ export class Windows {
     e.id = id;
     e.setAttribute("aria-label", title ?? id);
     Object.assign(e.style, { width: `${w}px`, height: `${h}px`, left: `${x}px`, top: `${y}px` });
+    e.classList.add("win-css");
     if (title) {
-      e.classList.add("win-css");
-      const t = el("div", "win-title", e);
+      const bar = el("div", "win-titlebar", e);
+      const t = el("span", "win-title", bar);
       t.textContent = title;
+      const close = el("button", "win-close", bar) as HTMLButtonElement;
+      close.type = "button";
+      close.textContent = "×";
+      close.title = "Close";
+      close.setAttribute("aria-label", "Close");
+      close.addEventListener("click", (ev) => { ev.stopPropagation(); e.classList.add("hidden"); });
+    } else {
+      const close = el("button", "win-close", e) as HTMLButtonElement;
+      close.type = "button";
+      close.textContent = "×";
+      close.style.cssText = "position:absolute;right:6px;top:6px;width:20px;height:20px;display:grid;place-items:center;border:0;border-radius:4px;background:transparent;color:#7b8794;font:700 13px 'Segoe UI',sans-serif;cursor:pointer;transition:background .12s,color .12s;z-index:5;";
+      close.title = "Close";
+      close.setAttribute("aria-label", "Close");
+      close.addEventListener("click", (ev) => { ev.stopPropagation(); e.classList.add("hidden"); });
     }
-    const drag = el("div", "win-drag", e);
-    drag.addEventListener("pointerdown", (ev) => {
-      const ox = ev.clientX - e.offsetLeft, oy = ev.clientY - e.offsetTop;
-      const mv = (m: PointerEvent) => {
-        e.style.left = `${Math.max(-w + 40, Math.min(innerWidth - 40, m.clientX - ox))}px`;
-        e.style.top = `${Math.max(0, Math.min(innerHeight - 30, m.clientY - oy))}px`;
-      };
-      const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); };
-      addEventListener("pointermove", mv); addEventListener("pointerup", up);
-    });
+    const drag = e.querySelector(".win-titlebar") as HTMLElement | null;
+    if (drag) {
+      drag.addEventListener("pointerdown", (ev: PointerEvent) => {
+        const ox = ev.clientX - e.offsetLeft, oy = ev.clientY - e.offsetTop;
+        const mv = (m: PointerEvent) => {
+          e.style.left = `${Math.max(-w + 40, Math.min(innerWidth - 40, m.clientX - ox))}px`;
+          e.style.top = `${Math.max(0, Math.min(innerHeight - 30, m.clientY - oy))}px`;
+        };
+        const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); };
+        addEventListener("pointermove", mv); addEventListener("pointerup", up);
+      });
+    }
     e.addEventListener("pointerdown", () => { e.style.zIndex = String(++this.z); });
-    const close = el("div", "", e);
-    button(close, this.win.close, () => e.classList.add("hidden"), "Close");
-    Object.assign(close.style, { position: "absolute", left: `${w - 21}px`, top: "6px", width: "13px", height: "13px" });
     // .text-only-bar and .text-only-body are lazily created here so the text-mode
     // renderers always find them (this used to throw when a panel opened).
     if (!e.querySelector(".text-only-bar")) {
@@ -146,11 +161,10 @@ export class Windows {
   }
 
   toggle(w: HTMLElement) {
-    // Stat and skill panels open in full (sprite) mode; text-only is a secondary view.
-    const wasHidden = w.classList.contains("hidden");
-    w.classList.remove("text-only");
+    if (w === this.stat) { this.renderStatText(); this.toggleTextOnly(this.stat, "Character"); return; }
+    if (w === this.skill) { this.renderSkillText(); this.toggleTextOnly(this.skill, "Skills"); return; }
     w.classList.toggle("hidden");
-    if (wasHidden) { w.style.zIndex = String(++this.z); this.lastStat = this.lastSkill = this.lastItem = ""; }
+    if (!w.classList.contains("hidden")) { w.style.zIndex = String(++this.z); this.lastStat = this.lastSkill = this.lastItem = ""; }
   }
 
   /** Toggles a panel between full (sprite) mode and a compact text-only strip. */
@@ -261,10 +275,7 @@ export class Windows {
   buildQuick(root: HTMLElement, ui: any) {
     this.quickRoot = root;
     root.textContent = "";
-    place(el("div", "spr", root), ui.quickBack);
     const grid = el("div", "quick-grid", root);
-    // Slots are 32×32 on a 35px pitch inside the 557×67 background (measured from the sprite).
-    Object.assign(grid.style, { left: `${-ui.quickBack.ox}px`, top: `${-ui.quickBack.oy}px` });
     for (const key of QUICK_KEYS) {
       const slot = el("div", "slot", grid);
       slot.dataset.key = key;
@@ -277,8 +288,6 @@ export class Windows {
       slot.addEventListener("contextmenu", (e) => { e.preventDefault(); if (this.game.quick[key]) { this.game.quick[key] = null; this.lastQuick = ""; this.game.onChange(); } });
       this.bindTip(slot, () => { const a = this.game.quick[key]; return a ? this.actionTip(a) + `<p class="tip-dim">Drag to move · drag off or right-click to remove</p>` : null; });
     }
-    const cover = place(el("div", "spr nopoint", root), ui.quickCover);
-    cover.style.zIndex = "2";
     this.lastQuick = "";
   }
 
@@ -310,9 +319,8 @@ export class Windows {
   // ------------------------------------------------------------- stat window
   buildStat() {
     const W = this.win.stat;
-    const w = this.makeWindow("stat-win", W.backgrnd.w, W.backgrnd.h, null, 80, 90);
+    const w = this.makeWindow("stat-win", W.backgrnd.w, W.backgrnd.h, "CHARACTER", 80, 90);
     this.stat = w;
-    for (const k of ["backgrnd", "backgrnd2", "backgrnd3"]) place(el("div", "spr", w), W[k]);
     const row = (key: string, y: number) => { const e = el("div", "stat-val", w); e.style.top = `${y}px`; this.statFields[key] = e; };
     row("name", 32); row("job", 50); row("guild", 68); row("fame", 86); row("damage", 104); row("damage2", 120);
     row("hp", 140); row("mp", 158); row("str", 228); row("dex", 246); row("int", 264); row("luk", 282);
@@ -378,9 +386,8 @@ export class Windows {
   // ------------------------------------------------------------- skill window
   buildSkill() {
     const W = this.win.skill;
-    const w = this.makeWindow("skill-win", W.backgrnd.w, W.backgrnd.h, null, 400, 110);
+    const w = this.makeWindow("skill-win", W.backgrnd.w, W.backgrnd.h, "SKILLS", 400, 110);
     this.skill = w;
-    for (const k of ["backgrnd", "backgrnd2", "backgrnd3"]) place(el("div", "spr", w), W[k]);
     const tabs = el("div", "skill-tabs", w);
     // Tabs come from the player's class (Beginner + 3 job tiers).
     this.buildSkillTabs(tabs);
@@ -425,7 +432,8 @@ export class Windows {
       const usable = g.stats.level >= d.reqLevel;
       const row = el("div", "skill-row", list);
       Object.assign(row.style, { left: `${(i % 2) * 152}px`, top: `${Math.floor(i / 2) * 40}px` });
-      bg(row, (usable ? W.skill0 : W.skill1).url);
+      row.style.backgroundColor = usable ? "var(--panel-light-2)" : "var(--panel-dark-2)";
+      row.style.borderColor = usable ? "#c8c8d2" : "var(--border-2)";
       const ic = el("div", "skill-icon", row);
       bg(ic, (lv > 0 ? art?.icon?.url : art?.iconDisabled?.url) ?? art?.icon?.url ?? "");
       if (lv > 0 && d.kind !== "passive") {
@@ -472,7 +480,7 @@ export class Windows {
     this.autoWin = w;
     const g = this.game, a = g.auto;
     const body = el("div", "auto-body", w);
-    const toggle = (label: string, key: "battle" | "hp" | "mp" | "buff" | "loot" | "ap" | "boss" | "magnet", hint: string) => {
+    const toggle = (label: string, key: "battle" | "hp" | "mp" | "buff" | "loot" | "ap" | "boss", hint: string) => {
       const row = el("label", "auto-row", body);
       const cb = el("input", "", row) as HTMLInputElement;
       cb.type = "checkbox"; cb.checked = a[key];
@@ -496,8 +504,7 @@ export class Windows {
     slider("mpPct", "Use when MP is");
     toggle("Auto Buff", "buff", "Recast buffs before they expire");
     toggle("Auto Loot", "loot", "Pick up mesos and items");
-    toggle("Meso Magnet", "magnet", "While auto battle runs, pull all loot to you");
-    toggle("Auto Stats", "ap", "Spend Ability Points on level up (class-aware)");
+    toggle("Auto Stats", "ap", "Spend Ability Points on level up (STR/DEX)");
     toggle("Auto Boss", "boss", "Challenge the stage boss as soon as it is ready");
     const reset = el("button", "auto-reset", body) as HTMLButtonElement;
     reset.type = "button";
