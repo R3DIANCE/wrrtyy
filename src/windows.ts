@@ -1,4 +1,5 @@
 // Quick slots (drag/drop), Stat / Skill / Item / Auto windows, buff bar, tooltips and chat balloon.
+import { ExtWindows } from "./windows2.ts";
 import type { Sprite } from "./assets.ts";
 import type { Game } from "./game.ts";
 import {
@@ -66,6 +67,7 @@ export class Windows {
   balloon: HTMLElement; balloonText: HTMLElement;
   autoBtn: HTMLElement;
   skillTab = 1;
+  ext!: ExtWindows;
   z = 20;
   lastQuick = ""; lastStat = ""; lastSkill = ""; lastItem = ""; lastBuffs = "";
   statFields: Record<string, HTMLElement> = {};
@@ -85,8 +87,8 @@ export class Windows {
     this.autoBtn.addEventListener("contextmenu", (e) => { e.preventDefault(); this.toggle(this.autoWin); });
     this.buildStat();
     this.buildSkill();
-    this.buildItem();
     this.buildAuto();
+    this.ext = new ExtWindows(this);
     addEventListener("pointermove", (e) => { const pe = e as PointerEvent; if (this.ghost) this.moveGhost(pe.clientX, pe.clientY); });
   }
 
@@ -373,44 +375,13 @@ export class Windows {
     sp.innerHTML = `SKILL POINT <b>${g.stats.sp}</b>`;
   }
 
-  // ------------------------------------------------------------- item window (Use tab)
-  buildItem() {
-    const w = this.makeWindow("item-win", 190, 222, "ITEM INVENTORY", innerWidth - 420, 120);
-    this.item = w;
-    const tab = el("div", "item-tabs", w);
-    tab.innerHTML = `<span>EQUIP</span><span class="on">USE</span><span>ETC</span>`;
-    el("div", "item-grid", w);
-    el("div", "item-meso", w);
-  }
-  renderItem() {
-    if (this.item.classList.contains("hidden")) return;
-    const g = this.game;
-    const sig = JSON.stringify([g.inv, g.stats.meso]);
-    if (sig === this.lastItem) return;
-    this.lastItem = sig;
-    const grid = this.item.querySelector(".item-grid") as HTMLElement;
-    grid.textContent = "";
-    const ids = Object.keys(ITEMS).map(Number);
-    for (let i = 0; i < 16; i++) {
-      const cell = el("div", "item-cell", grid);
-      const id = ids[i];
-      if (id == null || !(g.inv[id] > 0)) continue;
-      const ic = el("div", "item-icon grab", cell);
-      bg(ic, itemIcon(id));
-      const c = el("span", "slot-count", cell); c.textContent = String(g.inv[id]);
-      this.draggable(ic, () => ({ t: "item", id }), undefined, () => g.useAction({ t: "item", id }));
-      this.bindTip(ic, () => this.actionTip({ t: "item", id }) + `<p class="tip-dim">Click to use · drag to a quick slot</p>`);
-    }
-    (this.item.querySelector(".item-meso") as HTMLElement).textContent = `${g.stats.meso.toLocaleString()} mesos`;
-  }
-
   // ------------------------------------------------------------- auto settings
   buildAuto() {
-    const w = this.makeWindow("auto-win", 230, 326, "AUTO SETTINGS", innerWidth / 2 - 115, 110);
+    const w = this.makeWindow("auto-win", 230, 360, "AUTO SETTINGS", innerWidth / 2 - 115, 110);
     this.autoWin = w;
     const g = this.game, a = g.auto;
     const body = el("div", "auto-body", w);
-    const toggle = (label: string, key: "battle" | "hp" | "mp" | "buff" | "loot" | "ap", hint: string) => {
+    const toggle = (label: string, key: "battle" | "hp" | "mp" | "buff" | "loot" | "ap" | "boss", hint: string) => {
       const row = el("label", "auto-row", body);
       const cb = el("input", "", row) as HTMLInputElement;
       cb.type = "checkbox"; cb.checked = a[key];
@@ -435,6 +406,7 @@ export class Windows {
     toggle("Auto Buff", "buff", "Recast buffs before they expire");
     toggle("Auto Loot", "loot", "Pick up mesos and items");
     toggle("Auto Stats", "ap", "Spend Ability Points on level up (STR/DEX)");
+    toggle("Auto Boss", "boss", "Challenge the stage boss as soon as it is ready");
     const reset = el("button", "auto-reset", body) as HTMLButtonElement;
     reset.type = "button";
     reset.textContent = "Reset character";
@@ -503,7 +475,7 @@ export class Windows {
     this.renderQuick();
     this.renderStat();
     this.renderSkill();
-    this.renderItem();
+    this.ext.update();
     this.renderBuffs();
     const on = this.game.auto.battle;
     this.autoBtn.classList.toggle("on", on);

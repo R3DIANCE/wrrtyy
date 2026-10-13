@@ -1,6 +1,11 @@
 import { Assets, json, type Sprite } from "./assets.ts";
 import type { Renderer, Tex } from "./gpu.ts";
 import { FootholdTree, airMove, groundMove, type Foothold, type Ladder } from "./physics.ts";
+import { AH_TAX, AuctionHouse, goodsName, type Goods } from "./auction.ts";
+import {
+  GEAR, MATS, MOB_MAT, ORES, cubeCost, gearStats, makeGear, randomGearFor, rollPotential, recipeGearId, starCost, starMat, starRate,
+  npcSellPrice, type Gear, type Recipe, type Slot, RARITY,
+} from "./items.ts";
 import { DEFAULT_QUICK, ITEMS, SKILL, SKILL_DEFS, itemIconRaw, type Action, type SkillArt, type SkillDef } from "./skills.ts";
 
 // ---------------------------------------------------------------- data types
@@ -22,9 +27,11 @@ export const MAP_LINKS: Record<number, { left: number; right: number }> = {
   101010000: { left: 100020000, right: 100010000 },
 };
 
-const CHAR_EQUIP = [2000, 12000, 20000, 30030, 1040002, 1060002, 1072001, 1302000];
-const CHAR_ITEMS = encodeURIComponent(CHAR_EQUIP.map((i) => JSON.stringify({ itemId: i, region: "GMS", version: "240" })).join(","));
-const charUrl = (anim: string, f: number) => `https://maplestory.io/api/character/${CHAR_ITEMS}/${anim}/${f}?renderMode=4`;
+const BODY = [2000, 12000, 20000, 30030];
+export const lookKey = (ids: number[]) => encodeURIComponent([...BODY, ...ids].map((i) => JSON.stringify({ itemId: i, region: "GMS", version: "240" })).join(","));
+export const charUrlFor = (key: string, anim: string, f: number) => `https://maplestory.io/api/character/${key}/${anim}/${f}?renderMode=4`;
+export const BOSSES = [2220000, 3220000, 6130101, 9300003, 8220007, 5220000, 6300005];
+const STAGE_KILLS = 25;
 const ANIMS: Record<string, number[]> = {
   stand1: [500, 500, 500], walk1: [180, 180, 180, 180], alert: [500, 500, 500], jump: [200],
   prone: [200], ladder: [250, 250], rope: [250, 250], swingO1: [300, 150, 350], swingO2: [300, 150, 350],
@@ -43,8 +50,9 @@ interface Mob {
   dir: -1 | 1; state: "stand" | "move" | "hit1" | "die1" | "dead";
   t: number; anim: number; frame: number; hp: number; maxHp: number;
   aggro: number; hpShow: number; respawn: number; alpha: number;
+  mul: { exp: number; meso: number }; atk: number; boss?: boolean; skillT?: number; attacking?: string;
 }
-interface Drop { x: number; y: number; vx: number; vy: number; fh: Foothold | null; amount: number; item?: number; t: number; picked: number; ignoreFh?: number }
+interface Drop { x: number; y: number; vx: number; vy: number; fh: Foothold | null; amount: number; item?: number; mat?: number; gear?: Gear; t: number; picked: number; ignoreFh?: number }
 interface Projectile { x: number; y: number; target: Mob; dmg: number; miss: boolean; t: number }
 interface Fx { frames: Sprite[]; x: number; y: number; flip: boolean; t: number; follow?: boolean }
 interface DmgText { value: number; miss: boolean; hurt: boolean; x: number; y: number; t: number }
@@ -54,7 +62,7 @@ export interface Stats {
   name: string; level: number; exp: number; hp: number; maxHp: number; mp: number; maxMp: number; meso: number; job: string;
   str: number; dex: number; int: number; luk: number; ap: number; sp: number; baseHp: number; baseMp: number; fame: number;
 }
-export interface AutoSettings { battle: boolean; hp: boolean; hpPct: number; mp: boolean; mpPct: number; buff: boolean; loot: boolean; ap: boolean }
+export interface AutoSettings { battle: boolean; hp: boolean; hpPct: number; mp: boolean; mpPct: number; buff: boolean; loot: boolean; ap: boolean; boss: boolean }
 
 export type ChatKind = "system" | "exp" | "meso" | "level" | "notice" | "say" | "item";
 
@@ -82,15 +90,31 @@ export class Game {
     str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 2, baseHp: 50, baseMp: 30, fame: 0,
   };
   inv: Record<number, number> = { 2000000: 30, 2000001: 10, 2000002: 5, 2000003: 30, 2000006: 5 };
+  mats: Record<number, number> = { 4010000: 10, 4000001: 10 };
+  bag: Gear[] = [];
+  eq: Partial<Record<Slot, Gear>> = {};
+  look = lookKey([1040002, 1060002, 1072001, 1302000]);
+  lookWant = "";
+  prevLook = "";
+  gt = { watk: 0, str: 0, dex: 0, hp: 0, def: 0, att: 0, strP: 0, dexP: 0, hpP: 0, boss: 0, meso: 0, drop: 0, exp: 0 };
+  stage = { n: 1, kills: 0, best: 1 };
+  boss: Mob | null = null;
+  bossTimer = 0;
+  bossLoading = false;
+  idle = { autoTime: 0, autoKills: 0, killRate: 0.06, expPerKill: 15, mesoPerKill: 12 };
+  ah = new AuctionHouse(() => this.stats.level);
+  onOffline: (r: { seconds: number; kills: number; exp: number; meso: number; mats: Record<number, number>; gear: Gear[] }) => void = () => {};
+  onBoss: (m: Mob | null) => void = () => {};
   skillLv: Record<string, number> = { "1001005": 1, "0001000": 1 };
   skillArt: Record<string, SkillArt> = {};
   snailShell: Sprite | null = null;
   buffs: Record<string, { left: number; dur: number }> = {};
   quick: Record<string, Action | null> = { ...DEFAULT_QUICK };
-  auto: AutoSettings = { battle: false, hp: true, hpPct: 50, mp: true, mpPct: 30, buff: true, loot: true, ap: true };
+  auto: AutoSettings = { battle: false, hp: true, hpPct: 50, mp: true, mpPct: 30, buff: true, loot: true, ap: true, boss: true };
   balloon = { text: "", t: 0 };
   projectiles: Projectile[] = [];
   potCd = 0;
+  ahT = 0;
   timers = { regen: 0, recovery: 0, self: 0 };
   onChange: () => void = () => {};
   ai = { keys: new Set<string>(), pressed: new Set<string>(), target: null as Mob | null, think: 0, stuck: 0, lastX: 0, hold: 0, ban: new Map<Mob, number>() };
@@ -117,7 +141,10 @@ export class Game {
     this.recalc();
     // Warm up character frames (rendered server-side, so they can be slow the first time).
     const loads: Promise<unknown>[] = [];
-    for (const [a, fr] of Object.entries(ANIMS)) fr.forEach((_, i) => loads.push(this.assets.load(charUrl(a, i))));
+    if (!Object.keys(this.eq).length) for (const id of [1302000, 1040002, 1060002, 1072001]) if (GEAR.has(id)) this.eq[GEAR.get(id)!.slot] = makeGear(id, -10);
+    this.recalc();
+    this.look = this.computeLook();
+    for (const [a, fr] of Object.entries(ANIMS)) fr.forEach((_, i) => loads.push(this.assets.load(charUrlFor(this.look, a, i))));
     const fxs = [this.fxData.dmg, this.fxData.dmgFirst, this.fxData.hurt, this.fxData.hurtFirst].flatMap((o: any) => Object.values(o));
     for (const s of [...fxs, ...this.fxData.meso, ...this.fxData.portal, this.fxData.miss] as Sprite[]) if (s) loads.push(this.assets.load(s.url));
     for (const a of Object.values(this.skillArt)) for (const f of [...a.effect, ...a.effect0, ...a.hit]) this.assets.load(f.url);
@@ -127,6 +154,7 @@ export class Game {
 
   // ------------------------------------------------------------ map loading
   async loadMap(id: number, arrive: "spawn" | "left" | "right") {
+    if (this.boss) this.endBoss(false);
     this.loadingMap = true;
     const m = await json<MapData>(`./data/maps/${id}.json`);
     await Promise.all([...new Set(m.spawns.map((s) => s.id))].map(async (mid) => {
@@ -187,11 +215,13 @@ export class Game {
     const data = this.mobData.get(s.id);
     if (!data) return null;
     const fh = this.tree.landing(s.x, s.y - 30, s.y + 30) ?? this.tree.below(s.x, s.y - 30);
-    const maxHp = data.meta?.maxHP ?? 50;
+    const sc = this.stageMul();
+    const maxHp = Math.round((data.meta?.maxHP ?? 50) * sc.hp);
     return {
       data, spawn: s, x: s.x, y: fh ? FootholdTree.yAt(fh, s.x) : s.y, vx: 0, vy: 0, fh,
       dir: Math.random() < 0.5 ? -1 : 1, state: "stand", t: rand(0.5, 2.5), anim: 0, frame: 0,
       hp: maxHp, maxHp, aggro: 0, hpShow: 0, respawn: 0, alpha: 1,
+      mul: { exp: sc.exp, meso: sc.meso }, atk: this.mobAtk(data),
     };
   }
 
@@ -216,17 +246,49 @@ export class Game {
 
   // ------------------------------------------------------------ character stats
   lv(id: string) { return this.skillLv[id] ?? 0; }
-  totalStr() { return this.stats.str + this.lv("1100009") * 4; }
-  totalDex() { return this.stats.dex + this.lv("1100009") * 4; }
-  watk() { return 17 + (this.buffs["1101006"] ? this.lv("1101006") * 2 : 0); }
+  totalStr() { return Math.round((this.stats.str + this.lv("1100009") * 4 + this.gt.str) * (1 + this.gt.strP / 100)); }
+  totalDex() { return Math.round((this.stats.dex + this.lv("1100009") * 4 + this.gt.dex) * (1 + this.gt.dexP / 100)); }
+  watk() { return Math.round(((this.eq.weapon ? this.gt.watk : 5 + this.gt.watk) + (this.buffs["1101006"] ? this.lv("1101006") * 2 : 0)) * (1 + this.gt.att / 100)); }
   maxDamage() { return Math.max(1, ((4 * this.totalStr() + this.totalDex()) * this.watk()) / 40); }
+  combatPower() { return Math.round(this.maxDamage() * 12 * (1 + this.gt.boss / 200) + this.stats.maxHp / 4 + this.gt.def * 4); }
+  computeLook() {
+    const order: Slot[] = ["cape", "shoes", "bottom", "top", "gloves", "hat", "earrings", "shield", "weapon"];
+    return lookKey(order.map((k) => this.eq[k]?.id).filter((x): x is number => !!x));
+  }
+  /** Re-renders the character with new equipment; keeps the old look until the new frames are ready. */
+  refreshLook() {
+    const want = this.computeLook();
+    if (want === this.look || want === this.lookWant) return;
+    this.lookWant = want;
+    // Stand/walk first so the switch is quick; the remaining frames stream in (old look fills gaps).
+    const key = Object.entries(ANIMS).filter(([a]) => a === "stand1" || a === "walk1");
+    const loads: Promise<unknown>[] = [];
+    for (const [a, fr] of key) fr.forEach((_, i) => loads.push(Promise.resolve(this.assets.load(charUrlFor(want, a, i))).catch(() => null)));
+    Promise.race([Promise.all(loads), new Promise((r) => setTimeout(r, 15000))]).then(() => {
+      if (this.lookWant !== want) return;
+      if (this.assets.get(charUrlFor(want, "stand1", 0))) { this.prevLook = this.look; this.look = want; }
+      this.lookWant = "";
+      for (const [a, fr] of Object.entries(ANIMS)) fr.forEach((_, i) => this.assets.load(charUrlFor(want, a, i)));
+    });
+  }
   mastery() { return Math.min(0.9, 0.15 + this.lv("1100000") * 0.05); }
   damageRange() { const mx = this.maxDamage(); return [Math.max(1, Math.floor(mx * this.mastery())), Math.floor(mx)]; }
   speed() { return WALK * (1 + (this.buffs["0001002"] ? this.lv("0001002") * 0.1 : 0) + this.lv("1000009") * 0.01); }
   jobFor(level: number) { return level >= 20 ? "Crusader" : level >= 10 ? "Fighter" : "Warrior"; }
   recalc() {
     const s = this.stats;
-    s.maxHp = Math.round(s.baseHp * (1 + this.lv("1000009") * 0.03));
+    const gt = { watk: 0, str: 0, dex: 0, hp: 0, def: 0, att: 0, strP: 0, dexP: 0, hpP: 0, boss: 0, meso: 0, drop: 0, exp: 0 };
+    for (const g of Object.values(this.eq)) {
+      if (!g) continue;
+      const st = gearStats(g);
+      gt.watk += st.watk; gt.str += st.str; gt.dex += st.dex; gt.hp += st.hp; gt.def += st.def;
+      for (const p of g.pot) {
+        if (p.stat === "att") gt.att += p.pct; else if (p.stat === "str") gt.strP += p.pct; else if (p.stat === "dex") gt.dexP += p.pct;
+        else if (p.stat === "hp") gt.hpP += p.pct; else gt[p.stat] += p.pct;
+      }
+    }
+    this.gt = gt;
+    s.maxHp = Math.round((s.baseHp * (1 + this.lv("1000009") * 0.03) + gt.hp) * (1 + gt.hpP / 100));
     s.maxMp = Math.round(s.baseMp + s.int);
     s.hp = Math.min(s.hp, s.maxHp); s.mp = Math.min(s.mp, s.maxMp);
     s.job = this.jobFor(s.level);
@@ -326,6 +388,11 @@ export class Game {
     this.updatePlayer(dt);
     this.updateProjectiles(dt);
     this.balloon.t = Math.max(0, this.balloon.t - dt);
+    if (this.boss) { this.bossTimer -= dt; if (this.bossTimer <= 0) this.endBoss(false); }
+    else if (this.auto.boss && this.bossReady() && !this.p.ladder) this.challengeBoss();
+    if (this.auto.battle) { this.idle.autoTime += dt; if (this.idle.autoTime > 120) { this.idle.killRate = this.idle.autoKills / this.idle.autoTime; } if (this.idle.autoTime > 1800) { this.idle.autoTime /= 2; this.idle.autoKills /= 2; } }
+    this.ahT = (this.ahT ?? 0) + dt;
+    if (this.ahT > 5) { const sold = this.ah.tick(Date.now(), this.ahT); this.ahT = 0; if (sold) { this.onChat("meso", `Auction House: your ${goodsName(sold.goods)} sold for ${sold.price.toLocaleString()} mesos! Collect it in the Auction House (H).`); this.onChange(); } }
     for (const m of this.mobs) this.updateMob(m, dt);
     this.updateDrops(dt);
     for (const f of this.fx) f.t += dt * 1000;
@@ -510,7 +577,13 @@ export class Game {
         if (d.picked || !d.fh) continue;
         if (Math.abs(d.x - p.x) < 40 && Math.abs(d.y - p.y) < 40) {
           d.picked = 0.001;
-          if (d.item) {
+          if (d.gear) {
+            this.addGear(d.gear);
+            this.onChat("item", `You have gained ${RARITY[d.gear.rarity]} ${GEAR.get(d.gear.id)?.name ?? "equipment"}.`);
+          } else if (d.mat) {
+            this.mats[d.mat] = (this.mats[d.mat] ?? 0) + 1;
+            this.onChat("item", `You have gained an item (${MATS.get(d.mat) ?? d.mat})`);
+          } else if (d.item) {
             this.inv[d.item] = (this.inv[d.item] ?? 0) + 1;
             this.onChat("item", `You have gained an item (${ITEMS[d.item]?.name ?? d.item})`);
           } else {
@@ -635,7 +708,8 @@ export class Game {
     const missChance = Math.max(0.02, Math.min(0.5, 0.06 + (mobLv - this.stats.level) * 0.03 - this.totalDex() * 0.002 - this.lv("1100000") * 0.004));
     if (Math.random() < missChance) return { dmg: 0, miss: true };
     const def = (mob.data.meta?.PDDamage ?? 0) * 0.5;
-    return { dmg: Math.max(1, Math.round(rand(lo, hi) * pct / 100 - def)), miss: false };
+    const bossMul = mob.boss ? 1 + this.gt.boss / 100 : 1;
+    return { dmg: Math.max(1, Math.round((rand(lo, hi) * pct / 100) * bossMul - def)), miss: false };
   }
 
   resolveAttack(id: string | null) {
@@ -677,8 +751,22 @@ export class Game {
     m.dir = this.p.x < m.x ? -1 : 1;
     if (m.hp <= 0) {
       m.state = "die1"; m.anim = 0; m.frame = 0;
-      const exp = m.data.meta?.exp ?? 5;
+      if (m.boss) { this.endBoss(true); return; }
+      const exp = Math.max(1, Math.round((m.data.meta?.exp ?? 5) * m.mul.exp * (1 + this.gt.exp / 100)));
       this.gainExp(exp);
+      if (this.stage.kills < STAGE_KILLS) {
+        this.stage.kills++;
+        if (this.stage.kills === STAGE_KILLS) this.onChat("notice", `Stage ${this.stage.n} boss is ready! Press the BOSS button${this.auto.boss ? " (Auto Boss will challenge it for you)" : ""}.`);
+      }
+      // Idle tracking (used for offline rewards).
+      const id = this.idle;
+      id.expPerKill = id.expPerKill * 0.9 + exp * 0.1;
+      if (this.auto.battle) id.autoKills++;
+      const dropMul = 1 + this.gt.drop / 100;
+      const mat = MOB_MAT[m.data.id];
+      if (mat && Math.random() < 0.45 * dropMul) this.drops.push({ x: m.x + rand(-10, 10), y: m.y - 20, vx: rand(-50, 50), vy: -400, fh: null, amount: 0, mat, t: 0, picked: 0 });
+      if (Math.random() < 0.05 * dropMul) this.drops.push({ x: m.x, y: m.y - 20, vx: rand(-50, 50), vy: -420, fh: null, amount: 0, mat: ORES[Math.floor(Math.random() * Math.min(ORES.length, 2 + Math.floor(this.stage.n / 4)))], t: 0, picked: 0 });
+      if (Math.random() < 0.035 * dropMul) this.drops.push({ x: m.x, y: m.y - 20, vx: rand(-50, 50), vy: -420, fh: null, amount: 0, gear: makeGear(randomGearFor(this.stats.level)), t: 0, picked: 0 });
       const roll = Math.random();
       if (roll < 0.14) {
         const pool = [2000000, 2000000, 2000000, 2000003, 2000003, 2000001, 2000002, 2000006];
@@ -686,11 +774,15 @@ export class Game {
       }
       if (Math.random() < 0.75) {
         const lv = m.data.meta?.level ?? 5;
-        this.drops.push({ x: m.x, y: m.y - 20, vx: rand(-40, 40), vy: -380, fh: null, amount: Math.round(rand(lv * 1.5, lv * 3.5)), t: 0, picked: 0 });
+        const amt = Math.round(rand(lv * 1.5, lv * 3.5) * m.mul.meso * (1 + this.gt.meso / 100));
+        this.idle.mesoPerKill = this.idle.mesoPerKill * 0.9 + amt * 0.75 * 0.1;
+        this.drops.push({ x: m.x, y: m.y - 20, vx: rand(-40, 40), vy: -380, fh: null, amount: amt, t: 0, picked: 0 });
       }
     } else {
-      m.state = "hit1"; m.t = 0.5; m.anim = 0; m.frame = 0;
-      if (m.fh) groundMove(this.tree, m, this.p.face * 14, true);
+      if (!m.boss || Math.random() < 0.12) {
+        m.state = "hit1"; m.t = m.boss ? 0.25 : 0.5; m.anim = 0; m.frame = 0; m.attacking = undefined;
+        if (m.fh && !m.boss) groundMove(this.tree, m, this.p.face * 14, true);
+      }
     }
   }
 
@@ -722,9 +814,7 @@ export class Game {
       if (m.state === "die1" || m.state === "dead" || m.alpha < 1) continue;
       const b = this.mobBox(m);
       if (p.x + 12 > b.x0 && p.x - 12 < b.x1 && p.y > b.y0 + 6 && p.y - 60 < b.y1) {
-        const base = m.data.meta?.physicalDamage ?? 10;
-        const reduce = 1 - this.lv("1000003") * 0.02;
-        const dmg = Math.max(1, Math.round((base * 0.4 * rand(0.8, 1.2) - this.stats.level * 0.5) * reduce));
+        const dmg = this.hurtAmount(m.atk);
         this.stats.hp = Math.max(0, this.stats.hp - dmg);
         this.dmg.push({ value: dmg, miss: false, hurt: true, x: p.x, y: p.y - 75, t: 0 });
         p.invuln = 2; p.alert = 3;
@@ -736,7 +826,13 @@ export class Game {
     }
   }
 
+  hurtAmount(atk: number) {
+    const reduce = (1 - this.lv("1000003") * 0.02) * (100 / (100 + this.gt.def));
+    return Math.max(1, Math.round((atk * rand(0.8, 1.2) - this.stats.level * 0.5) * reduce));
+  }
+
   die() {
+    if (this.boss) this.endBoss(false);
     const s = this.stats;
     const lost = Math.floor(s.exp * 0.1);
     s.exp -= lost;
@@ -763,6 +859,7 @@ export class Game {
 
     if (m.state === "dead") {
       m.respawn -= dt;
+      if (m.boss) { this.mobs = this.mobs.filter((x) => x !== m); return; }
       if (m.respawn <= 0) Object.assign(m, this.makeMob(m.spawn), { alpha: 0 });
       return;
     }
@@ -782,6 +879,7 @@ export class Game {
       if (m.t <= 0) { m.state = "move"; m.t = rand(1, 3); m.frame = 0; m.anim = 0; }
       return;
     }
+    if (m.boss) { this.updateBoss(m, dt, play); return; }
     m.t -= dt;
     if (m.aggro > 0) {
       m.state = "move";
@@ -805,6 +903,39 @@ export class Game {
     } else play("stand", true);
   }
 
+  /** Bosses chase the player and periodically use their real attack/skill animations as an area hit. */
+  updateBoss(m: Mob, dt: number, play: (book: string, loop: boolean) => boolean) {
+    const p = this.p, books = m.data.books;
+    const dx = p.x - m.x;
+    if (m.attacking) {
+      if (play(m.attacking, false)) {
+        if (Math.abs(dx) < 230 && Math.abs(p.y - m.y) < 140 && p.invuln <= 0 && this.stats.hp > 0) {
+          const dmg = this.hurtAmount(m.atk * 1.6);
+          this.stats.hp = Math.max(0, this.stats.hp - dmg);
+          this.dmg.push({ value: dmg, miss: false, hurt: true, x: p.x, y: p.y - 75, t: 0 });
+          p.invuln = 1.5; p.alert = 3; p.ladder = null; p.fh = null; p.vx = (dx < 0 ? -1 : 1) * 200; p.vy = -320; p.attack = 0;
+          if (this.stats.hp <= 0) this.die();
+        }
+        m.attacking = undefined; m.skillT = rand(3, 5.5); m.frame = 0; m.anim = 0;
+      }
+      return;
+    }
+    m.skillT = (m.skillT ?? 3) - dt;
+    m.dir = dx < 0 ? -1 : 1;
+    const atkBook = ["attack1", "skill1"].filter((b) => books[b]?.length);
+    if (m.skillT <= 0 && Math.abs(dx) < 280 && atkBook.length) {
+      m.attacking = atkBook[Math.floor(Math.random() * atkBook.length)]; m.frame = 0; m.anim = 0;
+      return;
+    }
+    if (m.skillT <= 0) { m.skillT = rand(3, 5); if (books.jump && m.fh) { m.vy = -480; m.fh = null; return; } }
+    if (Math.abs(dx) > 50) {
+      const res = groundMove(this.tree, m, m.dir * 75 * dt, true);
+      if (res === "blocked") m.skillT = Math.min(m.skillT, 0.3);
+      play(books.move ? "move" : "stand", true);
+      if (m.state !== "move") { m.state = "move"; }
+    } else { if (m.state !== "stand") { m.state = "stand"; m.frame = 0; m.anim = 0; } play("stand", true); }
+  }
+
   updateDrops(dt: number) {
     for (const d of this.drops) {
       d.t += dt;
@@ -814,9 +945,231 @@ export class Game {
     this.drops = this.drops.filter((d) => (d.picked ? d.picked < 0.25 : d.t < 60));
   }
 
+  // ------------------------------------------------------------ equipment
+  equip(uid: string) {
+    const i = this.bag.findIndex((g) => g.uid === uid);
+    if (i < 0) return false;
+    const g = this.bag[i], b = GEAR.get(g.id)!;
+    if (this.stats.level < b.req) { this.onChat("system", `You need to be Lv. ${b.req} to equip ${b.name}.`); return false; }
+    this.bag.splice(i, 1);
+    const old = this.eq[b.slot];
+    if (old) this.bag.push(old);
+    this.eq[b.slot] = g;
+    this.recalc(); this.refreshLook(); this.onChange();
+    return true;
+  }
+  unequip(slot: Slot) {
+    const g = this.eq[slot];
+    if (!g) return;
+    if (this.bag.length >= 48) { this.onChat("system", "Your Equip inventory is full."); return; }
+    delete this.eq[slot];
+    this.bag.push(g);
+    this.recalc(); this.refreshLook(); this.onChange();
+  }
+  sellGear(uid: string) {
+    const i = this.bag.findIndex((g) => g.uid === uid);
+    if (i < 0) return;
+    const g = this.bag[i], price = npcSellPrice(g);
+    this.bag.splice(i, 1); this.stats.meso += price;
+    this.onChat("meso", `Sold ${GEAR.get(g.id)?.name} for ${price.toLocaleString()} mesos.`);
+    this.onChange();
+  }
+  sellJunk() {
+    const junk = this.bag.filter((g) => g.rarity === 0 && g.star === 0);
+    let total = 0;
+    for (const g of junk) total += npcSellPrice(g);
+    this.bag = this.bag.filter((g) => !junk.includes(g));
+    this.stats.meso += total;
+    this.onChat("meso", junk.length ? `Sold ${junk.length} Normal items for ${total.toLocaleString()} mesos.` : "No Normal-grade items to sell.");
+    this.onChange();
+  }
+  findGear(uid: string) { return this.bag.find((g) => g.uid === uid) ?? Object.values(this.eq).find((g) => g?.uid === uid) ?? null; }
+  addGear(g: Gear) {
+    if (this.bag.length >= 48) { const p = npcSellPrice(g); this.stats.meso += p; this.onChat("meso", `Equip inventory full — auto-sold ${GEAR.get(g.id)?.name} for ${p} mesos.`); return; }
+    this.bag.push(g);
+  }
+
+  // ------------------------------------------------------------ crafting
+  canCraft(r: Recipe) {
+    return this.stats.level >= r.level && this.stats.meso >= r.meso && r.needs.every(([id, n]) => (this.mats[id] ?? 0) >= n);
+  }
+  craft(r: Recipe) {
+    if (!this.canCraft(r)) return null;
+    for (const [id, n] of r.needs) this.mats[id] -= n;
+    this.stats.meso -= r.meso;
+    let msg = "";
+    if (r.out.t === "mat") { this.mats[r.out.id] = (this.mats[r.out.id] ?? 0) + r.out.n; msg = `Crafted ${MATS.get(r.out.id)} ×${r.out.n}.`; }
+    else if (r.out.t === "use") { this.inv[r.out.id] = (this.inv[r.out.id] ?? 0) + r.out.n; msg = `Crafted ${r.name}.`; }
+    else {
+      const id = recipeGearId(r.out.slot, r.out.tier);
+      if (!id) return null;
+      const g = makeGear(id, 1.2, 1);
+      this.addGear(g);
+      msg = `Crafted ${RARITY[g.rarity]} ${GEAR.get(id)?.name}!`;
+    }
+    this.onChat("item", msg); this.onChange();
+    return msg;
+  }
+  enhance(uid: string): "success" | "fail" | "max" | "cost" | null {
+    const g = this.findGear(uid);
+    if (!g) return null;
+    if (g.star >= 15) return "max";
+    const cost = starCost(g), mat = starMat(g.star);
+    if (this.stats.meso < cost || (this.mats[mat] ?? 0) < 1) return "cost";
+    this.stats.meso -= cost; this.mats[mat]--;
+    const ok = Math.random() < starRate(g.star);
+    if (ok) g.star++;
+    this.recalc(); this.onChange();
+    this.onChat(ok ? "level" : "system", ok ? `Star Force succeeded! ${GEAR.get(g.id)?.name} is now ★${g.star}.` : `Star Force failed. ${GEAR.get(g.id)?.name} stays at ★${g.star}.`);
+    return ok ? "success" : "fail";
+  }
+  cube(uid: string): boolean {
+    const g = this.findGear(uid);
+    if (!g) return false;
+    const cost = cubeCost(g);
+    if (this.stats.meso < cost || (this.mats[4000010] ?? 0) < 5) return false;
+    this.stats.meso -= cost; this.mats[4000010] -= 5;
+    const up = [0.3, 0.1, 0.04, 0.015, 0][g.rarity];
+    const tier = Math.random() < up;
+    if (tier) g.rarity++;
+    g.pot = rollPotential(GEAR.get(g.id)!.slot, Math.max(1, g.rarity));
+    if (g.rarity === 0) g.rarity = 1;
+    this.recalc(); this.onChange();
+    this.onChat(tier ? "level" : "item", tier ? `Potential tier up! ${GEAR.get(g.id)?.name} is now ${RARITY[g.rarity]}.` : `Potential reset on ${GEAR.get(g.id)?.name}.`);
+    return true;
+  }
+
+  // ------------------------------------------------------------ auction house
+  ahBuy(lid: string) {
+    const L = this.ah.listings.find((l) => l.lid === lid);
+    if (!L) return false;
+    if (this.stats.meso < L.price) { this.onChat("system", "You don't have enough mesos."); return false; }
+    if (L.goods.t === "gear" && this.bag.length >= 48) { this.onChat("system", "Your Equip inventory is full."); return false; }
+    this.stats.meso -= L.price;
+    this.receive(L.goods);
+    this.ah.listings = this.ah.listings.filter((l) => l !== L);
+    this.onChat("item", `Bought ${goodsName(L.goods)} from ${L.seller} for ${L.price.toLocaleString()} mesos.`);
+    this.onChange();
+    return true;
+  }
+  receive(g: Goods) {
+    if (g.t === "gear") this.addGear(g.gear);
+    else if (g.t === "mat") this.mats[g.id] = (this.mats[g.id] ?? 0) + g.n;
+    else this.inv[g.id] = (this.inv[g.id] ?? 0) + g.n;
+  }
+  ahList(goods: Goods, price: number) {
+    // Remove the goods from the player's inventory first.
+    if (goods.t === "gear") { const i = this.bag.findIndex((x) => x.uid === goods.gear.uid); if (i < 0) return false; this.bag.splice(i, 1); }
+    else if (goods.t === "mat") { if ((this.mats[goods.id] ?? 0) < goods.n) return false; this.mats[goods.id] -= goods.n; }
+    else { if ((this.inv[goods.id] ?? 0) < goods.n) return false; this.inv[goods.id] -= goods.n; }
+    const fee = Math.ceil(price * 0.01);
+    this.stats.meso = Math.max(0, this.stats.meso - fee);
+    this.ah.mine.push({ lid: `M${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, goods, price: Math.max(1, Math.round(price)), listedAt: Date.now(), sold: false });
+    this.onChat("system", `Listed ${goodsName(goods)} for ${price.toLocaleString()} mesos (fee ${fee}).`);
+    this.onChange();
+    return true;
+  }
+  ahCollect(lid: string) {
+    const i = this.ah.mine.findIndex((m) => m.lid === lid);
+    if (i < 0) return;
+    const m = this.ah.mine[i];
+    if (m.sold) { const net = Math.floor(m.price * (1 - AH_TAX)); this.stats.meso += net; this.onChat("meso", `Collected ${net.toLocaleString()} mesos from the Auction House.`); }
+    else { this.receive(m.goods); this.onChat("system", `Cancelled your listing for ${goodsName(m.goods)}.`); }
+    this.ah.mine.splice(i, 1);
+    this.onChange();
+  }
+
+  // ------------------------------------------------------------ stages & bosses
+  stageMul(n = this.stage.n) { return { hp: Math.pow(1.16, n - 1), dmg: Math.pow(1.07, n - 1), exp: Math.pow(1.11, n - 1), meso: Math.pow(1.1, n - 1) }; }
+  get stageNeed() { return STAGE_KILLS; }
+  bossReady() { return this.stage.kills >= STAGE_KILLS && !this.boss; }
+  bossFor(n = this.stage.n) { return BOSSES[(n - 1) % BOSSES.length]; }
+
+  async challengeBoss() {
+    if (this.boss || this.bossLoading || !this.bossReady() || this.loadingMap) return;
+    this.bossLoading = true;
+    const id = this.bossFor();
+    try {
+      if (!this.mobData.has(id)) this.mobData.set(id, await json(`./data/mobs/${id}.json`));
+      const data = this.mobData.get(id)!;
+      await Promise.race([Promise.all(Object.values(data.books).flat().map((s) => Promise.resolve(this.assets.load(s.url)).catch(() => null))), new Promise((r) => setTimeout(r, 15000))]);
+      const p = this.p;
+      const ref = this.mobs.find((m) => !m.boss);
+      const refHp = ref ? ref.maxHp : 100 * this.stageMul().hp;
+      const x = Math.max(this.tree.minX + 60, Math.min(this.tree.maxX - 60, p.x + p.face * 260));
+      const fh = this.tree.landing(x, p.y - 200, p.y + 200) ?? p.fh;
+      const spawn = { id, x, y: fh ? FootholdTree.yAt(fh, x) : p.y, fh: fh?.id ?? 0, rx0: this.bounds.l + 30, rx1: this.bounds.r - 30 };
+      const m = this.makeMob(spawn)!;
+      m.boss = true;
+      m.maxHp = m.hp = Math.round(refHp * 28 * (1 + this.stage.n * 0.04));
+      m.atk = Math.round((ref?.atk ?? 15) * 2.2);
+      m.mul = { exp: (ref?.mul.exp ?? 1) * 1, meso: ref?.mul.meso ?? 1 };
+      m.aggro = 999; m.skillT = 3; m.alpha = 0;
+      this.mobs.push(m);
+      this.boss = m;
+      this.bossTimer = 120;
+      this.onChat("notice", `Stage ${this.stage.n} boss: ${data.name.trim()} has appeared! Defeat it within 2 minutes.`);
+      this.onBoss(m);
+    } finally { this.bossLoading = false; }
+  }
+  endBoss(won: boolean) {
+    const m = this.boss;
+    if (!m) return;
+    this.boss = null;
+    if (!won) {
+      this.mobs = this.mobs.filter((x) => x !== m);
+      this.onChat("notice", `${m.data.name.trim()} escaped. Gather your strength and challenge it again.`);
+    } else {
+      const s = this.stage;
+      const ref = this.mobs.find((x) => !x.boss);
+      const exp = Math.round((ref?.data.meta?.exp ?? 15) * (ref?.mul.exp ?? 1) * 18);
+      this.gainExp(exp);
+      for (let i = 0; i < 6; i++) this.drops.push({ x: m.x + rand(-60, 60), y: m.y - 30, vx: rand(-90, 90), vy: -rand(380, 520), fh: null, amount: Math.round(rand(20, 40) * m.mul.meso * (1 + this.gt.meso / 100)), t: 0, picked: 0 });
+      const gearN = 1 + (Math.random() < 0.5 ? 1 : 0);
+      for (let i = 0; i < gearN; i++) this.drops.push({ x: m.x + rand(-40, 40), y: m.y - 30, vx: rand(-80, 80), vy: -480, fh: null, amount: 0, gear: makeGear(randomGearFor(this.stats.level + 5), 1.6, 1), t: 0, picked: 0 });
+      const bm = MOB_MAT[m.data.id];
+      if (bm) for (let i = 0; i < 3; i++) this.drops.push({ x: m.x + rand(-50, 50), y: m.y - 30, vx: rand(-70, 70), vy: -440, fh: null, amount: 0, mat: bm, t: 0, picked: 0 });
+      for (let i = 0; i < 2; i++) this.drops.push({ x: m.x + rand(-50, 50), y: m.y - 30, vx: rand(-70, 70), vy: -440, fh: null, amount: 0, mat: ORES[Math.min(ORES.length - 1, Math.floor(s.n / 3) % ORES.length)], t: 0, picked: 0 });
+      s.n++; s.kills = 0; s.best = Math.max(s.best, s.n);
+      this.onChat("level", `Stage cleared! Welcome to Stage ${s.n}. Monsters grow stronger — and so do their rewards.`);
+      for (const x of this.mobs) if (!x.boss) { const sc = this.stageMul(); x.maxHp = Math.round((x.data.meta?.maxHP ?? 50) * sc.hp); x.hp = Math.min(x.hp, x.maxHp); x.mul = { exp: sc.exp, meso: sc.meso }; x.atk = this.mobAtk(x.data); }
+    }
+    this.onBoss(null);
+    this.onChange();
+  }
+  mobAtk(d: MobData) { return Math.max(1, (d.meta?.physicalDamage ?? 10) * 0.4 * this.stageMul().dmg); }
+
+  /** Grants progress earned while the game was closed (auto battle at 60% efficiency, up to 12 h). */
+  offlineRewards(savedAt: number) {
+    const seconds = Math.min(12 * 3600, Math.max(0, (Date.now() - savedAt) / 1000));
+    if (seconds < 120) return;
+    const kills = Math.floor(seconds * this.idle.killRate * 0.6);
+    if (kills <= 0) return;
+    const exp = Math.round(kills * this.idle.expPerKill);
+    const meso = Math.round(kills * this.idle.mesoPerKill);
+    const mats: Record<number, number> = {};
+    const mm = this.map ? [...new Set(this.map.spawns.map((s) => MOB_MAT[s.id]).filter(Boolean))] : [4000001];
+    for (const id of mm) mats[id] = Math.floor((kills * 0.35) / mm.length);
+    mats[ORES[Math.floor(Math.random() * 3)]] = Math.floor(kills * 0.04);
+    const gear: Gear[] = [];
+    for (let i = 0; i < Math.min(8, Math.floor(kills / 120)); i++) gear.push(makeGear(randomGearFor(this.stats.level), 0.4));
+    this.onOffline({ seconds, kills, exp, meso, mats, gear });
+  }
+  claimOffline(r: { kills: number; exp: number; meso: number; mats: Record<number, number>; gear: Gear[] }, mult = 1) {
+    this.stats.meso += Math.round(r.meso * mult);
+    for (const [id, n] of Object.entries(r.mats)) this.mats[+id] = (this.mats[+id] ?? 0) + Math.round(n * mult);
+    for (const g of r.gear) this.addGear(g);
+    this.stage.kills = Math.min(STAGE_KILLS, this.stage.kills + r.kills);
+    this.gainExp(Math.round(r.exp * mult));
+    this.onChange();
+  }
+
   // ------------------------------------------------------------ save data
   save() {
-    return { v: 1, stats: this.stats, inv: this.inv, skillLv: this.skillLv, quick: this.quick, auto: this.auto, map: this.map?.id };
+    return {
+      v: 1, stats: this.stats, inv: this.inv, skillLv: this.skillLv, quick: this.quick, auto: this.auto, map: this.map?.id,
+      mats: this.mats, bag: this.bag, eq: this.eq, stage: this.stage, idle: this.idle, ah: this.ah.save(), savedAt: Date.now(),
+    };
   }
   restore(d: any) {
     if (!d || d.v !== 1) return;
@@ -825,6 +1178,12 @@ export class Game {
     if (d.skillLv) this.skillLv = d.skillLv;
     if (d.quick) this.quick = d.quick;
     if (d.auto) Object.assign(this.auto, d.auto, { battle: false });
+    if (d.mats) this.mats = d.mats;
+    if (d.bag) this.bag = d.bag.filter((g: Gear) => GEAR.has(g.id));
+    if (d.eq) { this.eq = {}; for (const [k, g] of Object.entries(d.eq as Record<string, Gear>)) if (g && GEAR.has(g.id)) this.eq[k as Slot] = g; }
+    if (d.stage) Object.assign(this.stage, d.stage);
+    if (d.idle) Object.assign(this.idle, d.idle);
+    if (d.ah) this.ah.restore(d.ah);
     this.recalc();
   }
 
@@ -855,8 +1214,13 @@ export class Game {
 
     for (const m of this.mobs) this.drawMob(m, cx, cy);
     for (const d of this.drops) {
-      if (d.item) {
-        const t = this.assets.get(itemIconRaw(d.item));
+      if (d.item || d.mat || d.gear) {
+        const t = this.assets.get(itemIconRaw(d.item ?? d.mat ?? d.gear!.id));
+        if (t && d.gear && d.gear.rarity > 0) {
+          const c = [[1, 1, 1], [0.4, 0.85, 1], [0.78, 0.49, 1], [1, 0.8, 0.2], [0.36, 1, 0.48]][d.gear.rarity];
+          const pulse = 0.35 + 0.25 * Math.sin(this.time * 6);
+          r.rect(Math.round(d.x - 12 - cx), Math.round(d.y - 4 - cy), 24, 4, [c[0], c[1], c[2], pulse]);
+        }
         if (t) r.draw(t, Math.round(d.x - t.w / 2 - cx), Math.round(d.y - t.h - cy - (d.fh ? Math.abs(Math.sin(d.t * 3)) * 3 : 0)), t.w, t.h, { alpha: d.picked ? 1 - d.picked * 4 : 1 });
         continue;
       }
@@ -902,7 +1266,9 @@ export class Game {
 
   drawPlayer(cx: number, cy: number) {
     const p = this.p;
-    const t = this.assets.get(charUrl(p.anim, p.frame)) ?? this.assets.get(charUrl("stand1", 0));
+    const t = this.assets.get(charUrlFor(this.look, p.anim, p.frame))
+      ?? (this.prevLook ? this.assets.get(charUrlFor(this.prevLook, p.anim, p.frame)) : null)
+      ?? this.assets.get(charUrlFor(this.look, "stand1", 0));
     if (!t) return;
     const blink = p.invuln > 0 && Math.floor(this.time * 16) % 2 === 0;
     this.r.draw(t, Math.round(p.x - t.w / 2 - cx), Math.round(p.y - t.h / 2 - cy), t.w, t.h, { flip: p.face === 1, alpha: blink ? 0.35 : 1 });
@@ -910,7 +1276,7 @@ export class Game {
 
   drawMob(m: Mob, cx: number, cy: number) {
     if (m.state === "dead") return;
-    const book = m.state === "move" ? (m.data.books.move ? "move" : "stand") : m.state;
+    const book = m.attacking ?? (m.state === "move" ? (m.data.books.move ? "move" : "stand") : m.state);
     const fr = m.data.books[book]?.[m.frame] ?? m.data.books.stand?.[0];
     if (!fr) return;
     const t = this.assets.get(fr.url);

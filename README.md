@@ -13,6 +13,12 @@ A fan-made MapleStory-style side-scrolling platformer built with **Bun** and **W
 - Quick slots: drag skills/items in, drag between slots to swap, drag off or right-click to remove
 - Auto Battle, Auto HP/MP potions (adjustable thresholds), Auto Buff, Auto Loot, Auto Stats
 - Chat balloons using the real ChatBalloon sprites
+- **Idle progression:** endless stages (25 kills → stage boss), monsters scale every stage, and offline rewards (Auto Battle keeps hunting at 60% pace for up to 12 hours)
+- **Bosses:** Mano, Stumpy, Mushmom, King Slime, Blue Mushmom, King Clang and Zombie Mushmom with real attack animations, a boss HP bar and a 2-minute timer; Auto Boss option
+- **Gear:** 64 real warrior equips across 9 slots (weapon, hat, top, bottom, shoes, gloves, shield, cape, earrings), Normal → Rare → Epic → Unique → Legendary potential, Combat Power, and equipped gear changes your character's look
+- **Crafting:** gear recipes, ore refining, potion brewing, Star Force enhancement (up to ★15) and Cubes to reroll potential
+- **Auction House:** simulated market with buy listings, deal indicators, selling with your own price, sales tax and listing fees, collected proceeds
+- Monster material drops (caps, bubbles, shells, ores, boss spores) feed crafting and the market
 - Progress saved in the browser (localStorage)
 - HUD built from the v270 (latest GMS) `StatusBar3` UI sprites: HP/MP status, full-width EXP bar, menu buttons, quick slots, chat, and minimap
 - Three linked maps: The Hill North of Henesys ↔ Spore Hill ↔ Shining Forest Path
@@ -37,7 +43,8 @@ bun run fetch-data # regenerate public/data metadata from maplestory.io
 | Ctrl / X | Basic attack |
 | Shift, Ins, Home, PgUp, 1–0, -, =, Del, End, PgDn, F1–F12 | Quick slots (defaults: Shift Slash Blast, Del/End/PgDn potions, 1–3 buffs) |
 | Z | Loot |
-| S / K / I | Character stats / Skills / Items |
+| S / K / E / I | Character stats / Skills / Equipment / Inventory |
+| J / H | Crafting / Auction House |
 | B | Toggle Auto Battle (right-click the AUTO button for settings) |
 | Enter | Chat (shows a chat balloon) |
 | Esc | Close the top window |

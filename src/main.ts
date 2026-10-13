@@ -1,3 +1,4 @@
+import { loadItemData } from "./items.ts";
 import { json } from "./assets.ts";
 import { Game } from "./game.ts";
 import { Renderer } from "./gpu.ts";
@@ -46,7 +47,10 @@ addEventListener("keydown", (e: KeyboardEvent) => {
     const w = hud.wins;
     if (k === "s") w.toggle(w.stat);
     else if (k === "k") w.toggle(w.skill);
-    else if (k === "i") w.toggle(w.item);
+    else if (k === "i") w.ext.open("inv");
+    else if (k === "e") w.ext.open("equip");
+    else if (k === "j") w.ext.open("craft");
+    else if (k === "h") w.ext.open("ah");
     else if (k === "b") w.toggleAutoBattle();
   }
   if (!game.keys.has(k)) game.pressed.add(k);
@@ -83,7 +87,8 @@ async function start() {
   startBtn.disabled = true;
   title.classList.add("hidden");
   setLoading("Loading the Maple World…");
-  const [ui, win] = await Promise.all([json("./data/ui.json"), json("./data/windows.json")]);
+  const [ui, win, items] = await Promise.all([json("./data/ui.json"), json("./data/windows.json"), json("./data/items.json")]);
+  loadItemData(items);
   game.onMapChange = (m) => {
     hud?.setMap(m);
     const src = m.bgmUrl;
@@ -98,7 +103,10 @@ async function start() {
   hud = new Hud(ui, game, win);
   hud.setMap(game.map);
   hud.addChat("system", "Arrows move · Alt/C/Space jump · Ctrl/X attack · Shift, Ins, Home, PgUp skills · Del/End potions · Z loot · Up at a portal");
-  hud.addChat("system", "S stats · K skills · I items · B auto battle · Enter chat. Drag icons onto the quick slots; drag off or right-click to remove.");
+  hud.addChat("system", "S stats · K skills · E equipment · I inventory · J crafting · H auction house · B auto battle · Enter chat. Drag icons onto the quick slots; drag off or right-click to remove.");
+  hud.addChat("notice", `Stage ${game.stage.n}: defeat ${game.stageNeed} monsters to summon the stage boss. Bosses drop rare gear and crafting materials.`);
+  if (saved?.stats?.name === name && saved.savedAt) game.offlineRewards(saved.savedAt);
+  game.ah.refresh(Date.now());
   const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(game.save())); } catch {} };
   let saveT = 0;
   game.onChange = () => { clearTimeout(saveT); saveT = setTimeout(persist, 800) as unknown as number; };

@@ -199,6 +199,51 @@ async function buildWindows() {
   return w;
 }
 
+// ---------------- Gear, materials, bosses ----------------
+export const BOSSES = [2220000, 3220000, 6130101, 9300003, 8220007, 5220000, 6300005];
+const GEAR_SLOTS: { slot: string; sub: string; job: boolean }[] = [
+  { slot: "weapon", sub: "One-Handed Sword", job: true },
+  { slot: "hat", sub: "Hat", job: true },
+  { slot: "top", sub: "Top", job: true },
+  { slot: "bottom", sub: "Bottom", job: true },
+  { slot: "shoes", sub: "Shoes", job: true },
+  { slot: "gloves", sub: "Glove", job: true },
+  { slot: "shield", sub: "Shield", job: true },
+  { slot: "cape", sub: "Cape", job: false },
+  { slot: "earrings", sub: "Earrings", job: false },
+];
+const MAT_IDS = [4000001, 4000010, 4000011, 4000012, 4000013, 4000014, 4000015, 4000016, 4000019, 4000040, 4000041, 4000042, 4000043,
+  4010000, 4010001, 4010002, 4010003, 4010006, 4011000, 4011001, 4011002, 4020000, 4020007, 4021000, 4021007, 4001832, 4001126];
+async function buildItems() {
+  const gear: any[] = [];
+  for (const g of GEAR_SLOTS) {
+    const q = `${API}/GMS/${WORLD_VER}/item?overallCategoryFilter=Equip&subCategoryFilter=${encodeURIComponent(g.sub)}&minLevelFilter=0&maxLevelFilter=70${g.job ? "&jobFilter=1" : ""}&count=400`;
+    const list: any[] = (await getJson(q)) ?? [];
+    const seen = new Set<string>();
+    const cands = list.filter((x) => !x.isCash && x.requiredGender !== 1 && !/cafe|event|anniv|flag|test|\(|quest/i.test(x.name + " " + (x.desc ?? "")))
+      .filter((x) => { if (seen.has(x.name)) return false; seen.add(x.name); return true; })
+      .sort((a, b) => a.requiredLevel - b.requiredLevel);
+    // One item per level bucket keeps a clean progression ladder.
+    const buckets = new Map<number, any>();
+    for (const c of cands) { const b = Math.floor(c.requiredLevel / 10); if (!buckets.has(b)) buckets.set(b, c); }
+    const picks = [...buckets.values()].slice(0, 8);
+    const details = await Promise.all(picks.map((c) => getJson(`${API}/GMS/${WORLD_VER}/item/${c.id}`)));
+    picks.forEach((c, i) => {
+      const m = details[i]?.metaInfo ?? {};
+      gear.push({ id: c.id, name: c.name, slot: g.slot, req: m.reqLevel ?? c.requiredLevel ?? 0,
+        watk: m.incPAD ?? 0, str: m.incSTR ?? 0, dex: m.incDEX ?? 0, hp: m.incMHP ?? 0, def: m.incPDD ?? 0, price: m.price ?? 100 });
+    });
+    console.log(g.slot, picks.map((p) => `${p.name}(${p.requiredLevel})`).join(", "));
+  }
+  const mats: any[] = [];
+  for (const id of MAT_IDS) {
+    const n = await getJson(`${API}/GMS/${WORLD_VER}/item/${id}/name`);
+    if (n?.name) mats.push({ id, name: n.name });
+  }
+  console.log("mats", mats.map((m) => `${m.id}:${m.name}`).join(", "));
+  return { gear, mats };
+}
+
 // ---------------- Mobs ----------------
 async function buildMob(id: number) {
   const info = await getJson(`${API}/GMS/${WORLD_VER}/mob/${id}`);
@@ -208,7 +253,7 @@ async function buildMob(id: number) {
   const src = linkNode?.value ? String(linkNode.value).padStart(7, "0") : id7;
   const books: Record<string, Sprite[]> = {};
   for (const [book, count] of Object.entries(info.framebooks as Record<string, number>)) {
-    if (!["stand", "move", "hit1", "die1", "jump", "fly"].includes(book)) continue;
+    if (!["stand", "move", "hit1", "die1", "jump", "fly", "attack1", "skill1"].includes(book)) continue;
     const list = await Promise.all(
       Array.from({ length: Math.min(count, 24) }, (_, i) =>
         sprite(WORLD_VER, `Mob/${src}.img/${book}/${i}`, `${API}/GMS/${WORLD_VER}/mob/${id}/render/${book}/${i}`)),
@@ -269,6 +314,10 @@ const want = (k: string) => !only || only.includes(k);
 await mkdir(OUT + "maps", { recursive: true });
 if (want("skills")) { console.log("skills…"); await writeFile(OUT + "skills.json", JSON.stringify(await buildSkills())); }
 if (want("windows")) { console.log("windows…"); await writeFile(OUT + "windows.json", JSON.stringify(await buildWindows())); }
+if (want("items")) { console.log("items…"); await writeFile(OUT + "items.json", JSON.stringify(await buildItems())); }
+if (want("bosses")) {
+  for (const id of BOSSES) { console.log("boss", id); const mob = await buildMob(id); if (mob) await writeFile(`${OUT}mobs/${id}.json`, JSON.stringify(mob)); }
+}
 if (only && !only.some((k) => ["ui", "fx", "maps"].includes(k))) process.exit(0);
 await mkdir(OUT + "mobs", { recursive: true });
 console.log("UI…");

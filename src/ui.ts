@@ -138,7 +138,7 @@ export class Hud {
 
   buildMenu() {
     this.menu = el("div", "menu", this.root);
-    const names: Record<string, string> = { CashShop: "Inventory (I)", Event: "Event", Character: "Character Stats (S)", Community: "Community", Setting: "Auto Settings", Menu: "Skills (K)" };
+    const names: Record<string, string> = { CashShop: "Auction House (H)", Event: "Inventory (I)", Character: "Equipment (E)", Community: "Crafting (J)", Setting: "Auto Settings", Menu: "Menu" };
     for (const [k, states] of Object.entries(this.ui.menu as Record<string, Record<string, Sprite>>)) {
       const n = states.normal;
       const b = el("button", "menu-btn", this.menu);
@@ -153,11 +153,12 @@ export class Hud {
       b.addEventListener("mouseup", () => (b.style.backgroundImage = `url("${states.mouseOver.url}")`));
       b.addEventListener("click", () => {
         const w = this.wins;
-        if (k === "Character") w.toggle(w.stat);
-        else if (k === "Menu") w.toggle(w.skill);
+        if (k === "Character") w.ext.open("equip");
+        else if (k === "Menu") w.ext.toggleMenu(b);
         else if (k === "Setting") w.toggle(w.autoWin);
-        else if (k === "CashShop") w.toggle(w.item);
-        else this.addChat("system", `${names[k]} is not available in this world yet.`);
+        else if (k === "CashShop") w.ext.open("ah");
+        else if (k === "Community") w.ext.open("craft");
+        else w.ext.open("inv");
       });
     }
   }
