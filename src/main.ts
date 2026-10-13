@@ -3,12 +3,13 @@ import { json } from "./assets.ts";
 import { Game } from "./game.ts";
 import { Renderer } from "./gpu.ts";
 import { Hud } from "./ui.ts";
-import { QUICK_KEYS } from "./skills.ts";
+import { CLASSES, QUICK_KEYS, type ClassId } from "./skills.ts";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const title = document.getElementById("title")!;
 const startBtn = document.getElementById("start-btn") as HTMLButtonElement;
 const nameInput = document.getElementById("name-input") as HTMLInputElement;
+const classSelect = document.getElementById("class-select") as HTMLSelectElement;
 const loading = document.getElementById("loading")!;
 const errorBox = document.getElementById("gpu-error")!;
 const bgm = new Audio();
@@ -22,6 +23,14 @@ let running = false;
 
 const SAVE_KEY = "maple-wayfarer-save";
 const GAME_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Alt", " ", "Tab", ...QUICK_KEYS]);
+
+// Populate the class dropdown.
+for (const c of CLASSES) {
+  const o = document.createElement("option");
+  o.value = c.id;
+  o.textContent = c.name;
+  classSelect.appendChild(o);
+}
 
 /** Layout-independent key names: letters lower-case, digits unaffected by Shift. */
 function keyName(e: KeyboardEvent): string {
@@ -56,15 +65,19 @@ addEventListener("keydown", (e: KeyboardEvent) => {
   if (!game.keys.has(k)) game.pressed.add(k);
   game.keys.add(k);
 });
-addEventListener("keyup", (e: KeyboardEvent) => { game.keys.delete(keyName(e)); });
 addEventListener("blur", () => game.keys.clear());
+addEventListener("keyup", (e: KeyboardEvent) => { game.keys.delete(keyName(e)); });
 
 function setLoading(t: string | null) {
   loading.textContent = t ?? "";
   loading.classList.toggle("hidden", !t);
 }
 
-try { const sv = JSON.parse(localStorage.getItem("maple-wayfarer-save") ?? "null"); if (sv?.stats?.name) nameInput.value = sv.stats.name; } catch {}
+try {
+  const sv = JSON.parse(localStorage.getItem(SAVE_KEY) ?? "null");
+  if (sv?.stats?.classId) classSelect.value = sv.stats.classId;
+  if (sv?.stats?.name) nameInput.value = sv.stats.name;
+} catch {}
 
 async function boot() {
   try {
@@ -101,16 +114,19 @@ async function start() {
   game.onGain = (k, t) => hud?.showGain(k, t);
   game.onLog = (k, t) => hud?.wins.pushLog(k, t);
   const name = game.stats.name;
-  if (saved?.stats?.name === name) game.restore(saved);
-  await game.init(saved?.stats?.name === name && saved.map ? saved.map : 100010000);
-  if (saved?.stats?.name === name) game.restore(saved);
+  const hasSave = saved?.stats?.name === name;
+  if (hasSave) game.restore(saved);
+  await game.init(hasSave && saved.map ? saved.map : 100010000);
+  if (hasSave) game.restore(saved);
   game.stats.name = name;
+  // New characters get class-specific starting stats, first skill and hotbar.
+  if (!hasSave) game.applyClassDefaults((classSelect.value || "warrior") as ClassId);
   hud = new Hud(ui, game, win);
   hud.setMap(game.map);
   hud.addChat("system", "Arrows move · Alt/C/Space jump · Ctrl/X attack · Shift, Ins, Home, PgUp skills · Del/End potions · Z loot · Up at a portal");
   hud.addChat("system", "S stats · K skills · E equipment · I inventory · J crafting · H auction house · B auto battle · Enter chat. Drag icons onto the quick slots; drag off or right-click to remove.");
   hud.addChat("notice", `Stage ${game.stage.n}: defeat ${game.stageNeed} monsters to summon the stage boss. Bosses drop rare gear and crafting materials.`);
-  if (saved?.stats?.name === name && saved.savedAt) game.offlineRewards(saved.savedAt);
+  if (hasSave && saved.savedAt) game.offlineRewards(saved.savedAt);
   game.ah.refresh(Date.now());
   const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(game.save())); } catch {} };
   let saveT = 0;

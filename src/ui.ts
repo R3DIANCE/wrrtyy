@@ -350,6 +350,8 @@ export class Hud {
     Object.assign(this.mini.style, { left: "4px", top: "4px" });
     const qLeft = W - qW;
     Object.assign(this.wins.autoBtn.style, { left: `${qLeft + 12}px`, top: `${H - expH - qH - 24}px` });
+    // Position the transient log at the bottom right, above the quick slots + AUTO button.
+    this.wins.layoutLogs(W, H, qW, expH, qH);
     this.last = "";
   }
 

@@ -141,11 +141,24 @@ async function buildFx() {
 }
 
 // ---------------- Skills (world version) ----------------
+// Warrior + Magician + Bowman (Archer) + Thief (Rogue). Skill IDs are real
+// current-GMS skills pulled from maplestory.io's String.wz tables.
 export const SKILLS = [
-  "0001000", "0001001", "0001002", // Beginner: Three Snails, Recovery, Nimble Feet
-  "1001005", "1001008", "1000003", "1000009", // Warrior: Slash Blast, War Leap, Iron Body, Warrior Mastery
-  "1101011", "1101006", "1100000", "1100009", // Fighter: Brandish, Spirit Blade, Weapon Mastery, Physical Training
-  "1111010", "1110000", // Crusader: Intrepid Slash, Self Recovery
+  // Shared beginner
+  "0001000", "0001001", "0001002", // Three Snails, Recovery, Nimble Feet
+  // Warrior: Beginner -> Warrior -> Fighter -> Crusader
+  "1001005", "1001008", "1000003", "1000009",
+  "1101011", "1101006", "1100000", "1100009",
+  "1111010", "1110000",
+  // Magician: Magician -> Wizard (Fire/Poison) -> Mage
+  "2001002", "2001003", "2001004", "2001005", // Magic Guard, Magic Armor, Energy Bolt, Magic Claw
+  "2101001", "2101002", "2101004", "2101005", // Meditation, Teleport, Flame Orb, Poison Breath
+  // Bowman (Archer): Archer -> Hunter -> Ranger
+  "3001004", "3001005", "3001007", // Arrow Blow, Double Shot, Double Jump
+  "3101003", "3101004", "3101005", "3101008", // Double Jump, Soul Arrow: Bow, Wind Arrow, Covering Fire
+  // Thief (Rogue): Rogue -> Assassin -> Hermit
+  "4001002", "4001003", "4001005", "4001011", // Disorder, Dark Sight, Haste, Flash Jump
+  "4101003", "4101005", "4101008", "4101009", // Claw Booster, Drain, Shuriken Burst, Flash Jump
 ];
 const jobOf = (id: string) => id.slice(0, 3);
 async function buildSkills() {
@@ -178,6 +191,14 @@ async function buildWindows() {
     await Promise.all(["normal", "mouseOver", "pressed", "disabled"].map(async (st) => { o[st] = await sprite(UI_VER, `${path}/${st}/0`); }));
     return o;
   };
+  const btnS = async (path: string) => {
+    const o: Record<string, Sprite | null> = {};
+    for (const st of ["normal", "mouseOver", "pressed", "disabled"]) {
+      const s = await sprite(UI_VER, `${path}/${st}`);
+      o[st] = s;
+    }
+    return o;
+  };
   const S = "UI/UIWindow4.img/Stat/main/";
   w.stat = {
     backgrnd: await sprite(UI_VER, S + "backgrnd"), backgrnd2: await sprite(UI_VER, S + "backgrnd2"), backgrnd3: await sprite(UI_VER, S + "backgrnd3"),
@@ -196,12 +217,22 @@ async function buildWindows() {
   const clr = await wz(UI_VER, B + "clr");
   w.balloon.clr = clr?.value ?? null;
   w.close = await btn("UI/Basic.img/BtClose3");
+
+  // Real MapleStory Equip window background layers (v270)
+  const E = "UI/UIWindow2.img/Equip/character/";
+  w.equip = {
+    backgrnd: await sprite(UI_VER, E + "backgrnd"),
+    backgrnd2: await sprite(UI_VER, E + "backgrnd2"),
+    backgrnd3: await sprite(UI_VER, E + "backgrnd3"),
+  };
   return w;
 }
 
 // ---------------- Gear, materials, bosses ----------------
 export const BOSSES = [2220000, 3220000, 6130101, 9300003, 8220007, 5220000, 6300005];
-const GEAR_SLOTS: { slot: string; sub: string; job: boolean }[] = [
+// MapleStory-style equipment destination sockets. Rings share a single item pool
+// (ring1..ring4 are separate destination sockets for the same item category).
+const GEAR_SLOTS: { slot: string; sub: string; job: boolean; pool?: boolean }[] = [
   { slot: "weapon", sub: "One-Handed Sword", job: true },
   { slot: "hat", sub: "Hat", job: true },
   { slot: "top", sub: "Top", job: true },
@@ -211,6 +242,14 @@ const GEAR_SLOTS: { slot: string; sub: string; job: boolean }[] = [
   { slot: "shield", sub: "Shield", job: true },
   { slot: "cape", sub: "Cape", job: false },
   { slot: "earrings", sub: "Earrings", job: false },
+  // Modern MapleStory extra slots
+  { slot: "pendant", sub: "Pendant", job: false },
+  { slot: "ring", sub: "Ring", job: false, pool: true },
+  { slot: "shoulder", sub: "Shoulder Accessory", job: false },
+  { slot: "belt", sub: "Belt", job: false },
+  { slot: "pocket", sub: "Pocket Item", job: false },
+  { slot: "emblem", sub: "Emblem", job: false },
+  { slot: "badge", sub: "Badge", job: false },
 ];
 const MAT_IDS = [4000001, 4000010, 4000011, 4000012, 4000013, 4000014, 4000015, 4000016, 4000019, 4000040, 4000041, 4000042, 4000043,
   4010000, 4010001, 4010002, 4010003, 4010006, 4011000, 4011001, 4011002, 4020000, 4020007, 4021000, 4021007, 4001832, 4001126];

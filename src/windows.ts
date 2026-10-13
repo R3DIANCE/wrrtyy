@@ -130,6 +130,18 @@ export class Windows {
     const close = el("div", "", e);
     button(close, this.win.close, () => e.classList.add("hidden"), "Close");
     Object.assign(close.style, { position: "absolute", left: `${w - 21}px`, top: "6px", width: "13px", height: "13px" });
+    // .text-only-bar and .text-only-body are lazily created here so the text-mode
+    // renderers always find them (this used to throw when a panel opened).
+    if (!e.querySelector(".text-only-bar")) {
+      const bar = el("div", "text-only-bar", e);
+      const title2 = el("span", "text-only-text", bar);
+      title2.textContent = title ?? id;
+      const closeBtn = el("button", "", bar) as HTMLButtonElement;
+      closeBtn.type = "button";
+      closeBtn.textContent = "×";
+      closeBtn.addEventListener("click", () => e.classList.add("hidden"));
+      el("div", "text-only-body", e);
+    }
     return e;
   }
 
@@ -338,6 +350,7 @@ export class Windows {
     const [lo, hi] = g.damageRange();
     const bonus = g.lv("1100009") * 4;
     const body = this.stat.querySelector(".text-only-body") as HTMLElement;
+    if (!body) return;
     body.innerHTML = `<h3>${s.name} — ${s.job}</h3>
       <div class="stat-row"><span>Level</span><b>${s.level}</b></div>
       <div class="stat-row"><span>EXP</span><b>${Math.round(expToLevel(s.level))}</b></div>
@@ -368,37 +381,45 @@ export class Windows {
     this.skill = w;
     for (const k of ["backgrnd", "backgrnd2", "backgrnd3"]) place(el("div", "spr", w), W[k]);
     const tabs = el("div", "skill-tabs", w);
-    JOB_TABS.forEach((name, i) => {
-      const t = el("button", "skill-tab", tabs) as HTMLButtonElement;
-      t.type = "button";
-      t.textContent = i === 0 ? "Beginner" : `${i}${["", "st", "nd", "rd"][i]} · ${name}`;
-      t.addEventListener("click", () => { this.skillTab = i; this.lastSkill = ""; });
-    });
+    // Tabs come from the player's class (Beginner + 3 job tiers).
+    this.buildSkillTabs(tabs);
     el("div", "skill-banner-icon", w);
     el("div", "skill-banner", w);
     el("div", "skill-list", w);
     el("div", "skill-sp", w);
   }
+  buildSkillTabs(tabs: HTMLElement) {
+    const c = this.game.class;
+    tabs.textContent = "";
+    c.tabs.forEach((name, i) => {
+      const t = el("button", "skill-tab", tabs) as HTMLButtonElement;
+      t.type = "button";
+      t.textContent = i === 0 ? "Beginner" : `${i}${["", "st", "nd", "rd"][i]} · ${name}`;
+      t.addEventListener("click", () => { this.skillTab = i as 0 | 1 | 2 | 3; this.lastSkill = ""; });
+    });
+  }
   renderSkill() {
     if (this.skill.classList.contains("hidden")) return;
     const g = this.game, W = this.win.skill;
-    const sig = JSON.stringify([this.skillTab, g.skillLv, g.stats.sp, g.stats.level]);
+    const sig = JSON.stringify([this.skillTab, g.skillLv, g.stats.sp, g.stats.level, g.stats.classId]);
     if (sig === this.lastSkill) return;
     this.lastSkill = sig;
     const w = this.skill;
+    const c = g.class;
     w.querySelectorAll<HTMLElement>(".skill-tab").forEach((t, i) => {
       t.classList.toggle("on", i === this.skillTab);
-      t.classList.toggle("locked", g.stats.level < TAB_LEVEL[i]);
+      t.classList.toggle("locked", g.stats.level < c.tabLevel[i]);
     });
     const tab = this.skillTab;
     const banner = w.querySelector(".skill-banner") as HTMLElement;
-    banner.innerHTML = `<b>${JOB_TABS[tab]}</b><span>${g.stats.level >= TAB_LEVEL[tab] ? "Skills available" : `Unlocks at Lv. ${TAB_LEVEL[tab]}`}</span>`;
+    banner.innerHTML = `<b>${c.tabs[tab]}</b><span>${g.stats.level >= c.tabLevel[tab] ? "Skills available" : `Unlocks at Lv. ${c.tabLevel[tab]}`}</span>`;
     const bi = w.querySelector(".skill-banner-icon") as HTMLElement;
-    const first = SKILL_DEFS.find((d) => d.tab === tab);
-    if (first) bg(bi, g.skillArt[first.id]?.icon?.url ?? "");
+    const first = c.skillsByTab[tab]?.[0];
+    if (first) bg(bi, g.skillArt[first]?.icon?.url ?? "");
     const list = w.querySelector(".skill-list") as HTMLElement;
     list.textContent = "";
-    SKILL_DEFS.filter((d) => d.tab === tab).forEach((d, i) => {
+    const defs = (c.skillsByTab[tab] ?? []).map((id) => SKILL[id]).filter(Boolean);
+    defs.forEach((d, i) => {
       const lv = g.lv(d.id), art = g.skillArt[d.id];
       const usable = g.stats.level >= d.reqLevel;
       const row = el("div", "skill-row", list);
@@ -424,14 +445,15 @@ export class Windows {
     if (!this.skill.classList.contains("text-only")) return;
     const g = this.game;
     const body = this.skill.querySelector(".text-only-body") as HTMLElement;
-    const rows = JOB_TABS.map((name, i) => {
-      const defs = SKILL_DEFS.filter((d) => d.tab === i);
+    if (!body) return;
+    const c = g.class;
+    const rows = c.tabs.map((name, i) => {
+      const defs = (c.skillsByTab[i] ?? []).map((id) => SKILL[id]).filter(Boolean);
       if (!defs.length) return "";
-      return `<div class="skill-row"><span class="s-name">${name}</span><span class="s-lv">Unlocks Lv.${TAB_LEVEL[i]}</span></div>` +
+      return `<div class="skill-row"><span class="s-name">${name}</span><span class="s-lv">Unlocks Lv.${c.tabLevel[i]}</span></div>` +
         defs.map((d) => {
           const lv = g.lv(d.id), art = g.skillArt[d.id];
-          const usable = g.stats.level >= d.reqLevel;
-          const learnBtn = d.kind === "passive" ? "" : `<button data-l="${d.id}" ${g.canLearn(d.id) ? "" : "disabled"}>Learn</button>`;
+          const learnBtn = `<button data-l="${d.id}" ${g.canLearn(d.id) ? "" : "disabled"}>Learn</button>`;
           return `<div class="skill-row"><span class="s-ic" style="background-image:url('${art?.icon?.url ?? ""}')"></span>
             <span class="s-meta"><span class="s-name">${art?.name ?? d.id}</span><span class="s-lv">${lv} / ${d.maxLevel}${d.kind === "passive" ? " · Passive" : ""}</span></span>
             ${learnBtn}</div>`;
@@ -484,37 +506,45 @@ export class Windows {
     (w as any)._sync = () => { battle.checked = a.battle; };
   }
 
-  // ------------------------------------------------------------- transient logs (right side)
+  // ------------------------------------------------------------- transient logs (bottom right, no background)
   buildLogs() {
     const box = el("div", "logs hidden", this.hudRoot);
     box.title = "Transient activity log. Click to dismiss.";
     this.logs = box;
-    for (let i = 0; i < 12; i++) {
-      const line = el("div", "log-line", box);
-      line.textContent = "";
-      this.logLines.push(line);
-    }
   }
-  /** Pushes a transient message into the right-side log; it fades out over time. */
+  /** Anchors the log above the bottom-right quick slots + AUTO button. */
+  layoutLogs(W: number, H: number, qW: number, expH: number, qH: number) {
+    const bottomOffset = expH + qH + 30; // exp bar + quick slots + AUTO button + small gap
+    Object.assign(this.logs.style, { right: `${Math.max(8, 8)}px`, left: "auto", top: "auto", bottom: `${bottomOffset}px` });
+  }
+  /** Pushes a transient message into the bottom-right log; it fades out over time. */
   pushLog(kind: ChatKind, text: string) {
     const line = el("div", `log-line ${kind}`, this.logs);
     line.textContent = text;
+    line.dataset.t = String(performance.now());
     this.logs.classList.remove("hidden");
     this.logLines.push(line);
-    if (this.logLines.length > 12) this.logLines[0]?.remove();
+    while (this.logLines.length > 12) {
+      const gone = this.logLines.shift();
+      gone?.remove();
+    }
   }
-  renderLogs(dt: number) {
-    if (!this.logs.classList.contains("hidden")) {
-      this.logTimer += dt;
-      for (const l of this.logLines) {
-        const t = l.dataset.t;
-        if (t) {
-          const fade = Math.max(0, 1 - (this.logTimer - Number(t)) / 4);
-          l.style.opacity = String(fade);
-          if (fade <= 0) { l.remove(); l.dataset.t = ""; }
-        }
+  renderLogs(_dt: number) {
+    if (this.logs.classList.contains("hidden")) return;
+    const now = performance.now();
+    for (const l of [...this.logLines]) {
+      const added = Number(l.dataset.t);
+      if (!added) continue;
+      const age = (now - added) / 1000; // seconds since insertion
+      const fade = Math.max(0, 1 - age / 6); // 6-second lifetime
+      l.style.opacity = String(fade);
+      if (fade <= 0) {
+        const i = this.logLines.indexOf(l);
+        if (i >= 0) this.logLines.splice(i, 1);
+        l.remove();
       }
     }
+    if (!this.logLines.length) this.logs.classList.add("hidden");
   }
 
   // ------------------------------------------------------------- buff bar

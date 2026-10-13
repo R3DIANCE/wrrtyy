@@ -1,12 +1,29 @@
 // Gear (rarity, potential, star force), materials, crafting recipes and market prices.
 
-export type Slot = "weapon" | "hat" | "top" | "bottom" | "shoes" | "gloves" | "shield" | "cape" | "earrings";
-export const SLOTS: Slot[] = ["earrings", "hat", "cape", "weapon", "top", "shield", "gloves", "bottom", "shoes"];
+export type Slot =
+  | "weapon" | "hat" | "top" | "bottom" | "shoes" | "gloves" | "shield" | "cape" | "earrings"
+  | "pendant" | "ring1" | "ring2" | "ring3" | "ring4" | "shoulder" | "belt" | "pocket" | "emblem" | "badge";
+
+/** Equip destination sockets in the order they appear in the Equipment panel (left to right). */
+export const SLOTS: Slot[] = [
+  "hat", "earrings", "ring1", "pendant", "weapon", "top", "bottom", "shield",
+  "cape", "gloves", "shoes", "ring2", "ring3", "ring4", "shoulder", "belt", "pocket", "emblem", "badge",
+];
+
 export const SLOT_NAME: Record<Slot, string> = {
-  weapon: "Weapon", hat: "Hat", top: "Top", bottom: "Bottom", shoes: "Shoes", gloves: "Gloves", shield: "Shield", cape: "Cape", earrings: "Earrings",
+  weapon: "Weapon", hat: "Hat", top: "Top", bottom: "Bottom", shoes: "Shoes", gloves: "Gloves", shield: "Shield",
+  cape: "Cape", earrings: "Earrings", pendant: "Pendant", ring1: "Ring 1", ring2: "Ring 2", ring3: "Ring 3", ring4: "Ring 4",
+  shoulder: "Shoulder", belt: "Belt", pocket: "Pocket", emblem: "Emblem", badge: "Badge",
 };
 
-export interface GearBase { id: number; name: string; slot: Slot; req: number; watk: number; str: number; dex: number; hp: number; def: number; price: number }
+/** The item-category name behind each socket (rings share a pool). */
+export const SLOT_CATEGORY: Partial<Record<Slot, "ring">> = {
+  ring1: "ring", ring2: "ring", ring3: "ring", ring4: "ring",
+};
+export const slotCategory = (s: Slot) => SLOT_CATEGORY[s] ?? (s as string);
+
+export interface GearBase { id: number; name: string; slot: string; req: number; watk: number; str: number; dex: number; hp: number; def: number; price: number }
+
 export interface Potential { stat: "att" | "str" | "dex" | "hp" | "boss" | "meso" | "drop" | "exp"; pct: number }
 export interface Gear { uid: string; id: number; rarity: number; star: number; pot: Potential[] }
 
@@ -26,9 +43,9 @@ const STARTER: GearBase[] = [
 export const GEAR = new Map<number, GearBase>();
 export const MATS = new Map<number, string>();
 
-export function loadItemData(d: { gear: GearBase[]; mats: { id: number; name: string }[] }) {
+export function loadItemData(d: { gear: (GearBase & { slot: string })[]; mats: { id: number; name: string }[] }) {
   for (const g of [...STARTER, ...d.gear]) {
-    const b = { ...g };
+    const b = { ...g } as GearBase;
     // Some accessories only carry magic defence in the data; give them level-scaled stats.
     if (!b.watk && !b.str && !b.dex && !b.hp && !b.def) { b.def = 2 + Math.round(b.req / 4); b.hp = b.req * 2; if (b.slot === "earrings") b.str = Math.round(b.req / 10); }
     if (b.slot === "weapon" && !b.watk) b.watk = 17 + b.req;
@@ -56,7 +73,7 @@ const POT_POOL: Record<string, Potential["stat"][]> = {
   weapon: ["att", "att", "str", "boss", "boss", "exp"],
   default: ["str", "dex", "hp", "hp", "att", "meso", "drop", "exp"],
 };
-export function rollPotential(slot: Slot, rarity: number): Potential[] {
+export function rollPotential(slot: string, rarity: number): Potential[] {
   if (rarity <= 0) return [];
   const lines = rarity >= 3 ? 3 : rarity + 1;
   const pool = POT_POOL[slot === "weapon" ? "weapon" : "default"];

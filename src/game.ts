@@ -6,7 +6,7 @@ import {
   GEAR, MATS, MOB_MAT, ORES, cubeCost, gearStats, makeGear, randomGearFor, rollPotential, recipeGearId, starCost, starMat, starRate,
   npcSellPrice, type Gear, type Recipe, type Slot, RARITY,
 } from "./items.ts";
-import { DEFAULT_QUICK, ITEMS, SKILL, SKILL_DEFS, itemIconRaw, type Action, type SkillArt, type SkillDef } from "./skills.ts";
+import { DEFAULT_QUICK, ITEMS, SKILL, SKILL_DEFS, classFor, type ClassId, itemIconRaw, type Action, type SkillArt, type SkillDef } from "./skills.ts";
 
 // ---------------------------------------------------------------- data types
 interface Back { sprite: Sprite; x: number; y: number; rx: number; ry: number; cx: number; cy: number; type: number; a: number; flip: boolean; front: boolean }
@@ -59,7 +59,7 @@ interface DmgText { value: number; miss: boolean; hurt: boolean; x: number; y: n
 interface Portal { x: number; y: number; to: number; side: "left" | "right" }
 
 export interface Stats {
-  name: string; level: number; exp: number; hp: number; maxHp: number; mp: number; maxMp: number; meso: number; job: string;
+  name: string; level: number; exp: number; hp: number; maxHp: number; mp: number; maxMp: number; meso: number; job: string; classId: ClassId;
   str: number; dex: number; int: number; luk: number; ap: number; sp: number; baseHp: number; baseMp: number; fame: number;
 }
 export interface AutoSettings { battle: boolean; hp: boolean; hpPct: number; mp: boolean; mpPct: number; buff: boolean; loot: boolean; ap: boolean; boss: boolean }
@@ -88,9 +88,10 @@ export class Game {
   onMapChange: (m: MapData) => void = () => {};
 
   stats: Stats = {
-    name: "Wayfarer", level: 1, exp: 0, hp: 50, maxHp: 50, mp: 30, maxMp: 30, meso: 0, job: "Warrior",
+    name: "Wayfarer", level: 1, exp: 0, hp: 50, maxHp: 50, mp: 30, maxMp: 30, meso: 0, job: "Warrior", classId: "warrior",
     str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 2, baseHp: 50, baseMp: 30, fame: 0,
   };
+  get class() { return classFor(this.stats.classId); }
   inv: Record<number, number> = { 2000000: 30, 2000001: 10, 2000002: 5, 2000003: 30, 2000006: 5 };
   mats: Record<number, number> = { 4010000: 10, 4000001: 10 };
   bag: Gear[] = [];
@@ -98,7 +99,7 @@ export class Game {
   look = lookKey([1040002, 1060002, 1072001, 1302000]);
   lookWant = "";
   prevLook = "";
-  gt = { watk: 0, str: 0, dex: 0, hp: 0, def: 0, att: 0, strP: 0, dexP: 0, hpP: 0, boss: 0, meso: 0, drop: 0, exp: 0 };
+  gt = { watk: 0, str: 0, dex: 0, int: 0, luk: 0, hp: 0, def: 0, att: 0, strP: 0, dexP: 0, intP: 0, lukP: 0, hpP: 0, boss: 0, meso: 0, drop: 0, exp: 0 };
   stage = { n: 1, kills: 0, best: 1 };
   boss: Mob | null = null;
   bossTimer = 0;
@@ -143,7 +144,16 @@ export class Game {
     this.recalc();
     // Warm up character frames (rendered server-side, so they can be slow the first time).
     const loads: Promise<unknown>[] = [];
-    if (!Object.keys(this.eq).length) for (const id of [1302000, 1040002, 1060002, 1072001]) if (GEAR.has(id)) this.eq[GEAR.get(id)!.slot] = makeGear(id, -10);
+    if (!Object.keys(this.eq).length) {
+      const c = this.class;
+      for (const id of [c.startingGear.weapon, c.startingGear.top, c.startingGear.bottom, c.startingGear.shoes]) {
+        const b = GEAR.get(id);
+        if (b) {
+          const sockets = this.socketsFor(b.slot);
+          this.eq[sockets[0]] = makeGear(id, -10);
+        }
+      }
+    }
     this.recalc();
     this.look = this.computeLook();
     for (const [a, fr] of Object.entries(ANIMS)) fr.forEach((_, i) => loads.push(this.assets.load(charUrlFor(this.look, a, i))));
@@ -250,12 +260,57 @@ export class Game {
   lv(id: string) { return this.skillLv[id] ?? 0; }
   totalStr() { return Math.round((this.stats.str + this.lv("1100009") * 4 + this.gt.str) * (1 + this.gt.strP / 100)); }
   totalDex() { return Math.round((this.stats.dex + this.lv("1100009") * 4 + this.gt.dex) * (1 + this.gt.dexP / 100)); }
+  totalInt() { return Math.round((this.stats.int + this.gt.int) * (1 + this.gt.intP / 100)); }
+  totalLuk() { return Math.round((this.stats.luk + this.gt.luk) * (1 + this.gt.lukP / 100)); }
+  /** Class-aware primary stat getter — the number the damage formula leans on. */
+  primaryStat() {
+    const c = this.class;
+    if (c.primary === "str") return this.totalStr();
+    if (c.primary === "dex") return this.totalDex();
+    if (c.primary === "int") return this.totalInt();
+    return this.totalLuk();
+  }
+  secondaryStat() {
+    const c = this.class;
+    if (c.secondary === "str") return this.totalStr();
+    if (c.secondary === "dex") return this.totalDex();
+    if (c.secondary === "int") return this.totalInt();
+    return this.totalLuk();
+  }
   watk() { return Math.round(((this.eq.weapon ? this.gt.watk : 5 + this.gt.watk) + (this.buffs["1101006"] ? this.lv("1101006") * 2 : 0)) * (1 + this.gt.att / 100)); }
-  maxDamage() { return Math.max(1, ((4 * this.totalStr() + this.totalDex()) * this.watk()) / 40); }
+  maxDamage() {
+    // Real MapleStory's per-class damage formulas, simplified to use the class's primary stat.
+    return Math.max(1, ((4 * this.primaryStat() + this.secondaryStat()) * this.watk()) / 40);
+  }
   combatPower() { return Math.round(this.maxDamage() * 12 * (1 + this.gt.boss / 200) + this.stats.maxHp / 4 + this.gt.def * 4); }
   computeLook() {
     const order: Slot[] = ["cape", "shoes", "bottom", "top", "gloves", "hat", "earrings", "shield", "weapon"];
     return lookKey(order.map((k) => this.eq[k]?.id).filter((x): x is number => !!x));
+  }
+
+  /** Destination sockets a gear item of the given category can be placed into. */
+  socketsFor(category: string): Slot[] {
+    if (category === "ring") return ["ring1", "ring2", "ring3", "ring4"];
+    return [category as Slot];
+  }
+
+  /** Applies class-specific starting stats, skills and hotbar for a brand-new character. */
+  applyClassDefaults(id: ClassId) {
+    const c = classFor(id);
+    this.stats.classId = c.id;
+    this.stats.baseHp = c.base.hp;
+    this.stats.baseMp = c.base.mp;
+    this.stats.str = c.base.str;
+    this.stats.dex = c.base.dex;
+    this.stats.int = c.base.int;
+    this.stats.luk = c.base.luk;
+    this.stats.hp = c.base.hp;
+    this.stats.mp = c.base.mp;
+    // Learn one attack skill automatically (so the hotbar works straight away).
+    const first = c.skillsByTab[1]?.[0] ?? c.skillsByTab[0][0];
+    if (first && SKILL[first]?.kind !== "passive") this.skillLv[first] = 1;
+    this.quick = { ...c.defaultQuick };
+    this.recalc();
   }
   /** Re-renders the character with new equipment; keeps the old look until the new frames are ready. */
   refreshLook() {
@@ -276,10 +331,13 @@ export class Game {
   mastery() { return Math.min(0.9, 0.15 + this.lv("1100000") * 0.05); }
   damageRange() { const mx = this.maxDamage(); return [Math.max(1, Math.floor(mx * this.mastery())), Math.floor(mx)]; }
   speed() { return WALK * (1 + (this.buffs["0001002"] ? this.lv("0001002") * 0.1 : 0) + this.lv("1000009") * 0.01); }
-  jobFor(level: number) { return level >= 20 ? "Crusader" : level >= 10 ? "Fighter" : "Warrior"; }
+  jobFor(level: number) {
+    const c = this.class;
+    return level >= c.tabLevel[3] ? c.tabs[3] : level >= c.tabLevel[2] ? c.tabs[2] : c.tabs[1];
+  }
   recalc() {
     const s = this.stats;
-    const gt = { watk: 0, str: 0, dex: 0, hp: 0, def: 0, att: 0, strP: 0, dexP: 0, hpP: 0, boss: 0, meso: 0, drop: 0, exp: 0 };
+    const gt = { watk: 0, str: 0, dex: 0, int: 0, luk: 0, hp: 0, def: 0, att: 0, strP: 0, dexP: 0, intP: 0, lukP: 0, hpP: 0, boss: 0, meso: 0, drop: 0, exp: 0 };
     for (const g of Object.values(this.eq)) {
       if (!g) continue;
       const st = gearStats(g);
@@ -303,9 +361,18 @@ export class Game {
     this.recalc(); this.onChange();
   }
   autoAssign() {
-    const s = this.stats;
-    while (s.ap > 0) { if (s.dex < 4 + s.level) this.addStat("dex"); else this.addStat("str"); }
+    const s = this.stats, c = this.class;
+    while (s.ap > 0) {
+      // Real MapleStory: 4/3 of points to primary stat, rest to secondary. Simplified here
+      // to a 3-then-1 rotation so the panel stays readable at every level.
+      if (s[c.secondary] < 4 + s.level && (this.autoTick = !this.autoTick) === false) {
+        this.addStat(c.secondary);
+      } else {
+        this.addStat(c.primary);
+      }
+    }
   }
+  autoTick = false;
   canLearn(id: string) {
     const d = SKILL[id];
     return !!d && this.stats.sp > 0 && this.stats.level >= d.reqLevel && this.lv(id) < d.maxLevel;
@@ -438,13 +505,7 @@ export class Game {
         for (const id of [2000003, 2000006]) if (this.useAction({ t: "item", id }, true)) { this.potCd = 0.6; break; }
       }
     }
-    if (this.auto.buff && this.p.attack <= 0 && !this.p.ladder) {
-      for (const d of SKILL_DEFS) {
-        if (d.kind !== "buff" || this.lv(d.id) <= 0) continue;
-        const b = this.buffs[d.id];
-        if ((!b || b.left < 3) && s.mp >= d.mp(this.lv(d.id)) + 10) { this.useAction({ t: "skill", id: d.id }, true); break; }
-      }
-    }
+    if (this.auto.buff && this.p.attack <= 0 && !this.p.ladder) this.autoBuffHotbar();
   }
 
   updateProjectiles(dt: number) {
@@ -464,19 +525,44 @@ export class Game {
   // ------------------------------------------------------------ auto battle
   liveMobs() { return this.mobs.filter((m) => m.state !== "dead" && m.state !== "die1" && m.alpha >= 1); }
 
-  /** Picks the best attack for the mobs in front of the player. */
+  /** Skills currently on the hotbar that this character has learned. */
+  hotbarSkills(): SkillDef[] {
+    const ids = new Set<string>();
+    for (const a of Object.values(this.quick)) {
+      if (a?.t === "skill") ids.add(a.id);
+    }
+    return SKILL_DEFS.filter((d) => ids.has(d.id) && this.lv(d.id) > 0);
+  }
+
+  /** Picks the best attack among only the skills the player has assigned to their hotbar. */
   bestAttack(dir: -1 | 1): { id: string | null; range: number } {
     const s = this.stats, p = this.p;
     let best: { id: string | null; range: number; score: number } = { id: null, range: 85, score: 1 };
-    for (const d of SKILL_DEFS) {
-      const lv = this.lv(d.id);
-      if ((d.kind !== "attack" && d.kind !== "ranged") || lv <= 0 || s.mp < d.mp(lv)) continue;
+    for (const d of this.hotbarSkills()) {
+      if (d.kind !== "attack" && d.kind !== "ranged") continue;
+      if (s.mp < d.mp(this.lv(d.id))) continue;
       const range = d.range ?? 90;
       const n = this.liveMobs().filter((m) => Math.abs(m.y - p.y) < 70 && (m.x - p.x) * dir > -20 && Math.abs(m.x - p.x) < range).length;
-      const score = Math.min(n, d.targets ?? 1) * (d.dmg!(lv) / 100) * (d.hits ?? 1) + (n ? 0.01 * range : 0);
+      const score = Math.min(n, d.targets ?? 1) * (d.dmg!(this.lv(d.id)) / 100) * (d.hits ?? 1) + (n ? 0.01 * range : 0);
       if (score > best.score) best = { id: d.id, range, score };
     }
+    // Fall back to the basic attack when no hotbar skill is usable in this situation.
+    if (best.id === null && this.hotbarSkills().length > 0 && Object.values(this.quick).some((a) => a?.t === "attack")) {
+      return { id: null, range: 85 }; // Ctrl/X-style basic attack
+    }
     return best;
+  }
+
+  /** Auto-buffs only skills on the hotbar. */
+  autoBuffHotbar() {
+    for (const d of this.hotbarSkills()) {
+      if (d.kind !== "buff") continue;
+      const b = this.buffs[d.id];
+      if ((!b || b.left < 3) && this.stats.mp >= d.mp(this.lv(d.id)) + 10) {
+        this.useAction({ t: "skill", id: d.id }, true);
+        break;
+      }
+    }
   }
 
   runAuto(dt: number) {
@@ -491,11 +577,17 @@ export class Game {
 
     ai.think -= dt;
     const alive = this.liveMobs().filter((m) => !ai.ban.has(m));
+    // ---- Smarter target selection -------------------------------------------
+    // Prefer targets already in the same horizontal band (so we don't ping-pong
+    // between platforms) and prefer the one closest to the player on the current
+    // floor, weighted against horizontal distance much more than vertical.
     if (!ai.target || ai.target.state === "dead" || ai.target.state === "die1" || ai.think <= 0) {
-      ai.think = 0.6;
+      ai.think = 0.8;
+      const sameBand = alive.filter((m) => Math.abs(m.y - p.y) < 70);
+      const pool = sameBand.length ? sameBand : alive;
       let best: Mob | null = null, bs = Infinity;
-      for (const m of alive) {
-        const sc = Math.abs(m.x - p.x) + Math.abs(m.y - p.y) * 2.5;
+      for (const m of pool) {
+        const sc = Math.abs(m.x - p.x) * (sameBand.length ? 1 : 0.5) + Math.abs(m.y - p.y) * 2.5;
         if (sc < bs) { bs = sc; best = m; }
       }
       if (best !== ai.target) ai.stuck = 0;
@@ -729,8 +821,13 @@ export class Game {
       .slice(0, d?.targets ?? 1);
     const pct = d?.dmg ? d.dmg(lv) : 100;
     if (d?.kind === "ranged") {
-      const m = targets[0];
-      if (m) { const r = this.rollDamage(pct, m); this.projectiles.push({ x: p.x + p.face * 20, y: p.y - 35, target: m, dmg: r.dmg, miss: r.miss, t: 0 }); }
+      // Ranged skills now spawn one projectile per target, with a per-hit damage roll.
+      for (const m of targets) {
+        for (let h = 0; h < (d?.hits ?? 1); h++) {
+          const r = this.rollDamage(pct, m);
+          this.projectiles.push({ x: p.x + p.face * 20, y: p.y - 35, target: m, dmg: r.dmg, miss: r.miss, t: 0 });
+        }
+      }
       return;
     }
     const art = id ? this.skillArt[id] : null;
@@ -955,10 +1052,17 @@ export class Game {
     if (i < 0) return false;
     const g = this.bag[i], b = GEAR.get(g.id)!;
     if (this.stats.level < b.req) { this.onChat("system", `You need to be Lv. ${b.req} to equip ${b.name}.`); return false; }
+    // Find the first empty destination socket for this item's category.
+    const sockets = this.socketsFor(b.slot);
+    let target: Slot | null = null;
+    for (const s of sockets) {
+      if (!this.eq[s]) { target = s; break; }
+    }
+    if (!target) target = sockets[0]; // all full: swap into the first socket
     this.bag.splice(i, 1);
-    const old = this.eq[b.slot];
+    const old = this.eq[target];
     if (old) this.bag.push(old);
-    this.eq[b.slot] = g;
+    this.eq[target] = g;
     this.recalc(); this.refreshLook(); this.onChange();
     return true;
   }
