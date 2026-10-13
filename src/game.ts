@@ -53,7 +53,7 @@ interface Mob {
   mul: { exp: number; meso: number }; atk: number; boss?: boolean; skillT?: number; attacking?: string;
 }
 interface Drop { x: number; y: number; vx: number; vy: number; fh: Foothold | null; amount: number; item?: number; mat?: number; gear?: Gear; t: number; picked: number; ignoreFh?: number }
-interface Projectile { x: number; y: number; target: Mob; dmg: number; miss: boolean; t: number }
+interface Projectile { x: number; y: number; target: Mob; dmg: number; miss: boolean; t: number; skillId?: string }
 interface Fx { frames: Sprite[]; x: number; y: number; flip: boolean; t: number; follow?: boolean }
 interface DmgText { value: number; miss: boolean; hurt: boolean; x: number; y: number; t: number }
 interface Portal { x: number; y: number; to: number; side: "left" | "right" }
@@ -306,9 +306,18 @@ export class Game {
     this.stats.luk = c.base.luk;
     this.stats.hp = c.base.hp;
     this.stats.mp = c.base.mp;
-    // Learn one attack skill automatically (so the hotbar works straight away).
-    const first = c.skillsByTab[1]?.[0] ?? c.skillsByTab[0][0];
-    if (first && SKILL[first]?.kind !== "passive") this.skillLv[first] = 1;
+    // Fresh characters start with NO learned skills, then learn one usable
+    // attack skill that is already on their default hotbar.
+    this.skillLv = {};
+    const attackIds = c.defaultQuick;
+    const pick = Object.values(attackIds)
+      .filter((a): a is { t: "skill"; id: string } => a?.t === "skill")
+      .map((a) => a.id)
+      .find((sid) => {
+        const d = SKILL[sid];
+        return d && d.kind !== "passive" && d.kind !== "buff" && d.kind !== "move";
+      });
+    if (pick) this.skillLv[pick] = 1;
     this.quick = { ...c.defaultQuick };
     this.recalc();
   }
@@ -341,9 +350,10 @@ export class Game {
     for (const g of Object.values(this.eq)) {
       if (!g) continue;
       const st = gearStats(g);
-      gt.watk += st.watk; gt.str += st.str; gt.dex += st.dex; gt.hp += st.hp; gt.def += st.def;
+      gt.watk += st.watk; gt.str += st.str; gt.dex += st.dex; gt.int += st.int; gt.luk += st.luk; gt.hp += st.hp; gt.def += st.def;
       for (const p of g.pot) {
         if (p.stat === "att") gt.att += p.pct; else if (p.stat === "str") gt.strP += p.pct; else if (p.stat === "dex") gt.dexP += p.pct;
+        else if (p.stat === "int") gt.intP += p.pct; else if (p.stat === "luk") gt.lukP += p.pct;
         else if (p.stat === "hp") gt.hpP += p.pct; else gt[p.stat] += p.pct;
       }
     }
@@ -373,9 +383,17 @@ export class Game {
     }
   }
   autoTick = false;
+  /** A skill is learnable only if it belongs to this class's tabs and the player meets the level. */
+  skillEligible(id: string) {
+    const d = SKILL[id];
+    if (!d) return false;
+    const c = this.class;
+    const inClass = c.skillsByTab.some((tab) => tab.includes(id));
+    return inClass && this.stats.level >= d.reqLevel;
+  }
   canLearn(id: string) {
     const d = SKILL[id];
-    return !!d && this.stats.sp > 0 && this.stats.level >= d.reqLevel && this.lv(id) < d.maxLevel;
+    return !!d && this.skillEligible(id) && this.stats.sp > 0 && this.lv(id) < d.maxLevel;
   }
   learn(id: string) {
     if (!this.canLearn(id)) return false;
@@ -406,6 +424,7 @@ export class Game {
     const d = SKILL[a.id], lv = this.lv(a.id);
     if (!d) return false;
     if (lv <= 0) { if (!quiet) this.onChat("system", "You haven't learned that skill yet."); return false; }
+    if (!this.skillEligible(a.id)) { if (!quiet) this.onChat("system", "That skill doesn't belong to your class."); return false; }
     if (d.kind === "passive") return false;
     const cost = d.mp(lv);
     if (d.kind === "buff") {
@@ -525,13 +544,13 @@ export class Game {
   // ------------------------------------------------------------ auto battle
   liveMobs() { return this.mobs.filter((m) => m.state !== "dead" && m.state !== "die1" && m.alpha >= 1); }
 
-  /** Skills currently on the hotbar that this character has learned. */
+  /** Skills currently on the hotbar that this character has learned and is eligible for. */
   hotbarSkills(): SkillDef[] {
     const ids = new Set<string>();
     for (const a of Object.values(this.quick)) {
       if (a?.t === "skill") ids.add(a.id);
     }
-    return SKILL_DEFS.filter((d) => ids.has(d.id) && this.lv(d.id) > 0);
+    return SKILL_DEFS.filter((d) => ids.has(d.id) && this.lv(d.id) > 0 && this.skillEligible(d.id));
   }
 
   /** Picks the best attack among only the skills the player has assigned to their hotbar. */
@@ -767,7 +786,10 @@ export class Game {
       this.animate(dt, anim, true);
     } else {
       // Airborne: limited air control, ladder grab mid-air.
-      if (jump && !downK && this.lv("1001008") > 0) { if (dir !== 0) p.face = dir as -1 | 1; this.useAction({ t: "skill", id: "1001008" }, true); }
+      // War Leap only fires when it is actually assigned to the hotbar — the
+      // hotbar is the single source of truth for which skills the character uses.
+      const leapOnHotbar = Object.values(this.quick).some((a) => a?.t === "skill" && a.id === "1001008");
+      if (jump && !downK && leapOnHotbar && this.lv("1001008") > 0) { if (dir !== 0) p.face = dir as -1 | 1; this.useAction({ t: "skill", id: "1001008" }, true); }
       const vmax = p.leapt ? Math.max(Math.abs(p.vx), this.speed()) : this.speed();
       if (dir !== 0) { p.vx += dir * 300 * dt; p.vx = Math.max(-vmax, Math.min(vmax, p.vx)); if (p.attack <= 0) p.face = dir as -1 | 1; }
       if (up) {
@@ -825,7 +847,7 @@ export class Game {
       for (const m of targets) {
         for (let h = 0; h < (d?.hits ?? 1); h++) {
           const r = this.rollDamage(pct, m);
-          this.projectiles.push({ x: p.x + p.face * 20, y: p.y - 35, target: m, dmg: r.dmg, miss: r.miss, t: 0 });
+          this.projectiles.push({ x: p.x + p.face * 20, y: p.y - 35, target: m, dmg: r.dmg, miss: r.miss, t: 0, skillId: id ?? undefined });
         }
       }
       return;
@@ -1338,8 +1360,19 @@ export class Game {
     }
     this.drawPlayer(cx, cy);
     for (const f of this.fx) this.drawFx(f, cx, cy);
-    const sh = this.snailShell, st = sh && this.assets.get(sh.url);
-    if (st) for (const pr of this.projectiles) r.draw(st, Math.round(pr.x - sh!.w / 2 - cx), Math.round(pr.y - sh!.h / 2 - cy), sh!.w, sh!.h, { flip: Math.floor(pr.t * 12) % 2 === 0 });
+    // Projectiles render with the skill's real effect frame when available, otherwise
+    // the shared snail-shell sprite (the default basic-attack visual).
+    for (const pr of this.projectiles) {
+      let fr: Sprite | null = null;
+      if (pr.skillId) {
+        const art = this.skillArt[pr.skillId];
+        if (art?.effect?.length) fr = art.effect[0];
+      }
+      if (!fr) fr = this.snailShell;
+      if (!fr) continue;
+      const st = this.assets.get(fr.url);
+      if (st) r.draw(st, Math.round(pr.x - fr.w / 2 - cx), Math.round(pr.y - fr.h / 2 - cy), fr.w, fr.h, { flip: Math.floor(pr.t * 12) % 2 === 0 });
+    }
     for (const m of this.mobs) this.drawMobHp(m, cx, cy);
     for (const d of this.dmg) this.drawDamage(d, cx, cy);
     this.drawBacks(true, cx, cy);

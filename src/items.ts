@@ -22,9 +22,9 @@ export const SLOT_CATEGORY: Partial<Record<Slot, "ring">> = {
 };
 export const slotCategory = (s: Slot) => SLOT_CATEGORY[s] ?? (s as string);
 
-export interface GearBase { id: number; name: string; slot: string; req: number; watk: number; str: number; dex: number; hp: number; def: number; price: number }
+export interface GearBase { id: number; name: string; slot: string; req: number; watk: number; str: number; dex: number; int: number; luk: number; hp: number; def: number; price: number }
 
-export interface Potential { stat: "att" | "str" | "dex" | "hp" | "boss" | "meso" | "drop" | "exp"; pct: number }
+export interface Potential { stat: "att" | "str" | "dex" | "int" | "luk" | "hp" | "boss" | "meso" | "drop" | "exp"; pct: number }
 export interface Gear { uid: string; id: number; rarity: number; star: number; pot: Potential[] }
 
 export const RARITY = ["Normal", "Rare", "Epic", "Unique", "Legendary"];
@@ -35,10 +35,10 @@ export const MAX_STAR = 15;
 
 // Starter look (also real equips) plus everything gathered from maplestory.io.
 const STARTER: GearBase[] = [
-  { id: 1302000, name: "Sword", slot: "weapon", req: 0, watk: 17, str: 0, dex: 0, hp: 0, def: 0, price: 50 },
-  { id: 1040002, name: "White Undershirt", slot: "top", req: 0, watk: 0, str: 0, dex: 0, hp: 0, def: 3, price: 30 },
-  { id: 1060002, name: "Blue Jean Shorts", slot: "bottom", req: 0, watk: 0, str: 0, dex: 0, hp: 0, def: 2, price: 30 },
-  { id: 1072001, name: "Red Rubber Boots", slot: "shoes", req: 0, watk: 0, str: 0, dex: 0, hp: 0, def: 2, price: 30 },
+  { id: 1302000, name: "Sword", slot: "weapon", req: 0, watk: 17, str: 0, dex: 0, int: 0, luk: 0, hp: 0, def: 0, price: 50 },
+  { id: 1040002, name: "White Undershirt", slot: "top", req: 0, watk: 0, str: 0, dex: 0, int: 0, luk: 0, hp: 0, def: 3, price: 30 },
+  { id: 1060002, name: "Blue Jean Shorts", slot: "bottom", req: 0, watk: 0, str: 0, dex: 0, int: 0, luk: 0, hp: 0, def: 2, price: 30 },
+  { id: 1072001, name: "Red Rubber Boots", slot: "shoes", req: 0, watk: 0, str: 0, dex: 0, int: 0, luk: 0, hp: 0, def: 2, price: 30 },
 ];
 export const GEAR = new Map<number, GearBase>();
 export const MATS = new Map<number, string>();
@@ -99,22 +99,24 @@ export function randomGearFor(level: number) {
   return pick(list.length ? list : [...GEAR.values()]).id;
 }
 
-export interface GearStats { watk: number; str: number; dex: number; hp: number; def: number }
+export interface GearStats { watk: number; str: number; dex: number; int: number; luk: number; hp: number; def: number }
 export function gearStats(g: Gear): GearStats {
   const b = GEAR.get(g.id);
-  if (!b) return { watk: 0, str: 0, dex: 0, hp: 0, def: 0 };
+  if (!b) return { watk: 0, str: 0, dex: 0, int: 0, luk: 0, hp: 0, def: 0 };
   const rb = 1 + g.rarity * 0.08; // higher rarity also rolls slightly better base stats
   const s = g.star;
   return {
     watk: Math.round(b.watk * rb + (b.slot === "weapon" ? s * Math.max(2, b.watk * 0.05) : s >= 5 ? s - 4 : 0)),
     str: Math.round(b.str * rb + s * 2),
     dex: Math.round(b.dex * rb + s * 2),
+    int: Math.round((b.int ?? 0) * rb + s * 2),
+    luk: Math.round((b.luk ?? 0) * rb + s * 2),
     hp: Math.round(b.hp * rb + s * 8),
     def: Math.round(b.def * rb + s * 2),
   };
 }
 export const POT_LABEL: Record<Potential["stat"], string> = {
-  att: "ATT", str: "STR", dex: "DEX", hp: "Max HP", boss: "Boss Damage", meso: "Meso Obtained", drop: "Item Drop Rate", exp: "EXP Obtained",
+  att: "ATT", str: "STR", dex: "DEX", int: "INT", luk: "LUK", hp: "Max HP", boss: "Boss Damage", meso: "Meso Obtained", drop: "Item Drop Rate", exp: "EXP Obtained",
 };
 
 // ------------------------------------------------------------- star force & cubes

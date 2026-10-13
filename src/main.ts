@@ -1,6 +1,7 @@
 import { loadItemData } from "./items.ts";
 import { json } from "./assets.ts";
 import { Game } from "./game.ts";
+import type { ChatKind } from "./game.ts";
 import { Renderer } from "./gpu.ts";
 import { Hud } from "./ui.ts";
 import { CLASSES, QUICK_KEYS, type ClassId } from "./skills.ts";
@@ -111,16 +112,15 @@ async function start() {
     const transient = new Set(["exp", "meso", "level", "item", "notice", "system"]);
     if (transient.has(k)) hud?.wins.pushLog(k, t); else hud?.addChat(k, t);
   };
-  game.onGain = (k, t) => hud?.showGain(k, t);
+  game.onGain = (k, t) => { hud?.showGain(k, t); hud?.wins.pushLog(k as ChatKind, t); };
   game.onLog = (k, t) => hud?.wins.pushLog(k, t);
   const name = game.stats.name;
   const hasSave = saved?.stats?.name === name;
   if (hasSave) game.restore(saved);
+  else game.applyClassDefaults((classSelect.value || "warrior") as ClassId);
   await game.init(hasSave && saved.map ? saved.map : 100010000);
   if (hasSave) game.restore(saved);
   game.stats.name = name;
-  // New characters get class-specific starting stats, first skill and hotbar.
-  if (!hasSave) game.applyClassDefaults((classSelect.value || "warrior") as ClassId);
   hud = new Hud(ui, game, win);
   hud.setMap(game.map);
   hud.addChat("system", "Arrows move · Alt/C/Space jump · Ctrl/X attack · Shift, Ins, Home, PgUp skills · Del/End potions · Z loot · Up at a portal");

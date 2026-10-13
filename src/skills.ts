@@ -77,7 +77,7 @@ export const CLASSES: ClassDef[] = [
       ["0001000", "0001001", "0001002"],
       ["2001002", "2001003", "2001004", "2001005"],
       ["2101001", "2101002", "2101004", "2101005"],
-      [],
+      ["2301001", "2301003", "2301004", "2301005", "2301008", "2301010"],
     ],
     startingGear: { weapon: 1302000, top: 1040002, bottom: 1060002, shoes: 1072001 },
     defaultQuick: {
@@ -96,7 +96,7 @@ export const CLASSES: ClassDef[] = [
       ["0001000", "0001001", "0001002"],
       ["3001004", "3001005", "3001007"],
       ["3101003", "3101004", "3101005", "3101008"],
-      [],
+      ["3101007", "3101009"],
     ],
     startingGear: { weapon: 1302000, top: 1040002, bottom: 1060002, shoes: 1072001 },
     defaultQuick: {
@@ -115,7 +115,7 @@ export const CLASSES: ClassDef[] = [
       ["0001000", "0001001", "0001002"],
       ["4001002", "4001003", "4001005", "4001011"],
       ["4101003", "4101005", "4101008", "4101009"],
-      [],
+      ["4101004", "4111005", "4111010"],
     ],
     startingGear: { weapon: 1302000, top: 1040002, bottom: 1060002, shoes: 1072001 },
     defaultQuick: {
@@ -187,6 +187,20 @@ export const SKILL_DEFS: SkillDef[] = [
   { id: "2101005", kind: "ranged", tab: 2, reqLevel: 10, maxLevel: 20, mp: (l) => 14 + Math.floor(l / 2), dmg: (l) => 140 + l * 6, hits: 3, targets: 3, range: 380,
     summary: (l) => `Breathes poison at up to 3 enemies. Damage ${140 + l * 6}%.` },
 
+  // ---- Magician 3rd job (Mage)
+  { id: "2301001", kind: "move", tab: 3, reqLevel: 20, maxLevel: 10, mp: (l) => Math.max(6, 18 - l),
+    summary: (l) => `Teleport: instantly move a short distance. Range +${l * 14}%.` },
+  { id: "2301003", kind: "passive", tab: 3, reqLevel: 20, maxLevel: 10, mp: () => 0,
+    summary: (l) => `Permanently take ${l * 3}% less damage from monsters.` },
+  { id: "2301004", kind: "buff", tab: 3, reqLevel: 20, maxLevel: 10, mp: (l) => 16 + l, duration: (l) => 90 + l * 15,
+    summary: (l) => `Bless: ATT and DEF +${l * 3} for ${90 + l * 15} sec.` },
+  { id: "2301005", kind: "ranged", tab: 3, reqLevel: 20, maxLevel: 20, mp: (l) => 18 + Math.floor(l / 2), dmg: (l) => 170 + l * 8, hits: 1, targets: 2, range: 400,
+    summary: (l) => `Fires a holy arrow at up to 2 enemies. Damage ${170 + l * 8}%.` },
+  { id: "2301008", kind: "buff", tab: 3, reqLevel: 20, maxLevel: 10, mp: (l) => 20 + l, duration: (l) => 120 + l * 20,
+    summary: (l) => `Magic Booster: casting speed +${l * 5}% for ${120 + l * 20} sec.` },
+  { id: "2301010", kind: "ranged", tab: 3, reqLevel: 20, maxLevel: 20, mp: (l) => 24 + l, dmg: (l) => 200 + l * 10, hits: 3, targets: 6, range: 400,
+    summary: (l) => `Angelic Wrath: holy storm hits up to 6 enemies. Damage ${200 + l * 10}%.` },
+
   // ---- Bowman (Archer)
   { id: "3001004", kind: "ranged", tab: 1, reqLevel: 1, maxLevel: 20, mp: (l) => 10 + Math.floor(l / 2), dmg: (l) => 120 + l * 5, hits: 1, targets: 2, range: 400,
     summary: (l) => `Fires a strong arrow at up to 2 enemies. Damage ${120 + l * 5}%.` },
@@ -202,6 +216,12 @@ export const SKILL_DEFS: SkillDef[] = [
     summary: (l) => `Looses a wind-touched arrow at up to 4 enemies. Damage ${160 + l * 7}%.` },
   { id: "3101008", kind: "ranged", tab: 2, reqLevel: 10, maxLevel: 20, mp: (l) => 18 + l, dmg: (l) => 180 + l * 8, hits: 3, targets: 6, range: 420,
     summary: (l) => `Fires a volley of arrows at up to 6 enemies. Damage ${180 + l * 8}%.` },
+
+  // ---- Bowman 3rd job (Ranger)
+  { id: "3101007", kind: "buff", tab: 3, reqLevel: 20, maxLevel: 10, mp: (l) => 20 + l, duration: (l) => 90 + l * 20,
+    summary: (l) => `Silver Hawk: a summoned companion attacks with you for ${90 + l * 20} sec.` },
+  { id: "3101009", kind: "passive", tab: 3, reqLevel: 20, maxLevel: 10, mp: () => 0,
+    summary: (l) => `Quiver Cartridge: permanently +${l * 4}% attack damage.` },
 
   // ---- Thief (Rogue)
   { id: "4001002", kind: "attack", tab: 1, reqLevel: 1, maxLevel: 20, mp: (l) => 8 + Math.floor(l / 2), dmg: (l) => 100 + l * 5, hits: 2, targets: 1, range: 140,
@@ -220,6 +240,14 @@ export const SKILL_DEFS: SkillDef[] = [
     summary: (l) => `Burst of shurikens hits up to 4 enemies. Damage ${150 + l * 7}%.` },
   { id: "4101009", kind: "move", tab: 2, reqLevel: 10, maxLevel: 10, mp: (l) => Math.max(4, 14 - l),
     summary: (l) => `Flash Jump: leap farther in mid-air. Range +${l * 16}%.` },
+
+  // ---- Thief 3rd job (Hermit)
+  { id: "4101004", kind: "buff", tab: 3, reqLevel: 20, maxLevel: 10, mp: (l) => 14 + l, duration: (l) => 90 + l * 20,
+    summary: (l) => `Haste: speed +${15 + l * 2}% and jump +${10 + l}% for ${90 + l * 20} sec.` },
+  { id: "4111005", kind: "ranged", tab: 3, reqLevel: 20, maxLevel: 20, mp: (l) => 20 + Math.floor(l / 2), dmg: (l) => 190 + l * 9, hits: 4, targets: 6, range: 420,
+    summary: (l) => `Avenger: a massive star hits up to 6 enemies. Damage ${190 + l * 9}%.` },
+  { id: "4111010", kind: "ranged", tab: 3, reqLevel: 20, maxLevel: 20, mp: (l) => 26 + l, dmg: (l) => 220 + l * 11, hits: 3, targets: 3, range: 400,
+    summary: (l) => `Triple Throw: three lethal stars. Damage ${220 + l * 11}%.` },
 ];
 
 export const SKILL = Object.fromEntries(SKILL_DEFS.map((s) => [s.id, s])) as Record<string, SkillDef>;

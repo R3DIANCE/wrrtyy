@@ -150,11 +150,13 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 .buff-time { position: absolute; right: 1px; bottom: 0; z-index: 1; font: bold 10px Arial; color: #fff; text-shadow: 0 0 2px #000, 0 0 1px #000; }
 
 /* ---------- text-only panels ---------- */
-.win.text-only { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+/* A text-only window is a compact overlay; a full window (sprite) keeps its inline position. */
+.win.text-only { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%) !important;
   width: 320px; max-width: calc(100vw - 32px); height: auto; min-height: 120px; z-index: 17;
   background: linear-gradient(#f7f7f7, #e9e9ee); border: 1px solid #3b1d4a; border-radius: 8px;
   box-shadow: 0 0 0 2px #7c3e93 inset, 0 8px 24px rgba(0,0,0,.4);
   display: flex; flex-direction: column; overflow: hidden; }
+.win.text-only .x-body, .win.text-only .x-close { display: none; }
 .win.text-only .text-only-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
   padding: 5px 8px; background: linear-gradient(#8e4aa8, #5a2670); color: #ffd43b; font: bold 10px Arial; letter-spacing: .5px; }
 .win.text-only .text-only-bar button { margin-left: auto; font: bold 9px Arial; padding: 2px 6px;
@@ -201,10 +203,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 .win.text-only .text-only-body .ah-row button:enabled:hover { background: linear-gradient(#ffe7b8, #ffbe55); }
 
 /* ---------- transient logs (bottom right, transparent, no background) ---------- */
-.logs { position: absolute; right: 8px; bottom: 96px; width: 220px;
+.logs { position: absolute; right: 8px; bottom: 96px; width: 320px;
   display: flex; flex-direction: column-reverse; gap: 3px; pointer-events: none; z-index: 16;
   font: 11px/14px Arial; }
-.log-line { color: #cdd6e0; text-shadow: 0 1px 0 #000, 0 0 2px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.log-line { color: #cdd6e0; text-shadow: 0 1px 0 #000, 0 0 2px #000; white-space: normal;
   background: transparent; border: 0; box-shadow: none; padding: 0; }
 .log-line.exp { color: #ffe98a; }
 .log-line.meso { color: #7dff6b; }
@@ -255,12 +257,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 .inv-grid { display: grid; grid-template-columns: repeat(5, 38px); gap: 2px; align-content: start; overflow-y: auto; max-height: 222px; padding-right: 2px; }
 
 /* equipment */
-.egrid-new { display: grid; grid-template-columns: auto 90px auto; gap: 8px; align-items: start; }
-.e-left-col, .e-right-col { display: flex; flex-direction: column; gap: 4px; }
-.eslot.empty { width: 38px; height: 38px; display: grid; place-items: center; border: 1px dashed #c4c4d0; border-radius: 3px; background: #f1f1f4; }
-.eslot.empty span { font: 8px Arial; color: #9a9aa8; text-align: center; }
-.eprev { position: relative; width: 90px; height: 130px; display: grid; place-items: end center; background: linear-gradient(#cfe9ff, #eef7ff); border: 1px solid #cfd0d8; border-radius: 4px; overflow: hidden; }
-.eprev img { image-rendering: pixelated; margin-bottom: 6px; }
+.egrid-new { display: grid; grid-template-columns: 40px auto 40px 40px; gap: 6px; align-items: start; }
+.e-left-col, .e-right-col { display: flex; flex-direction: column; gap: 3px; }
+.eslot.empty { width: 40px; height: 40px; display: grid; place-items: center; border: 1px dashed #c4c4d0; border-radius: 3px; background: #f1f1f4; }
+.eslot.empty span { font: 7px Arial; color: #9a9aa8; text-align: center; }
+.eprev { position: relative; width: 100px; height: 170px; display: grid; place-items: end center;
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  border-radius: 4px; overflow: hidden; }
+.eprev img { image-rendering: pixelated; margin-bottom: 10px; }
 .ecp { margin-top: 8px; display: flex; align-items: baseline; justify-content: space-between; padding: 4px 8px; background: linear-gradient(#3b1d4a, #5a2670); border-radius: 4px; color: #fff; }
 .ecp small { font: bold 9px Arial; color: #e6c9ff; letter-spacing: .5px; }
 .ecp b { font: bold 15px Arial; color: #ffd43b; }
@@ -268,7 +272,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 .erow { display: flex; justify-content: space-between; padding: 2px 4px; background: #fff; border-radius: 2px; font: 10px Arial; }
 .erow:nth-child(odd) { background: #f4f4f8; }
 .erow b { color: #333; }
-.ehint { font: 9px Arial; color: #888; }
+.ehint { font: 9px Arial; color: #555; padding-top: 4px; }
 
 /* crafting */
 .xlist { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; min-height: 0; flex: 1; padding-right: 2px; }

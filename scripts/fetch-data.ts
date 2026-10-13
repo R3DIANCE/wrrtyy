@@ -153,12 +153,15 @@ export const SKILLS = [
   // Magician: Magician -> Wizard (Fire/Poison) -> Mage
   "2001002", "2001003", "2001004", "2001005", // Magic Guard, Magic Armor, Energy Bolt, Magic Claw
   "2101001", "2101002", "2101004", "2101005", // Meditation, Teleport, Flame Orb, Poison Breath
+  "2301001", "2301003", "2301004", "2301005", "2301008", "2301010", // Teleport (Mage), Invincible, Bless, Holy Arrow, Magic Booster, Angelic Wrath
   // Bowman (Archer): Archer -> Hunter -> Ranger
   "3001004", "3001005", "3001007", // Arrow Blow, Double Shot, Double Jump
   "3101003", "3101004", "3101005", "3101008", // Double Jump, Soul Arrow: Bow, Wind Arrow, Covering Fire
+  "3101007", "3101009", // Silver Hawk, Quiver Cartridge (Ranger)
   // Thief (Rogue): Rogue -> Assassin -> Hermit
   "4001002", "4001003", "4001005", "4001011", // Disorder, Dark Sight, Haste, Flash Jump
   "4101003", "4101005", "4101008", "4101009", // Claw Booster, Drain, Shuriken Burst, Flash Jump
+  "4101004", "4111005", "4111010", // Haste (Hermit), Avenger, Triple Throw
 ];
 const jobOf = (id: string) => id.slice(0, 3);
 async function buildSkills() {
@@ -270,7 +273,8 @@ async function buildItems() {
     picks.forEach((c, i) => {
       const m = details[i]?.metaInfo ?? {};
       gear.push({ id: c.id, name: c.name, slot: g.slot, req: m.reqLevel ?? c.requiredLevel ?? 0,
-        watk: m.incPAD ?? 0, str: m.incSTR ?? 0, dex: m.incDEX ?? 0, hp: m.incMHP ?? 0, def: m.incPDD ?? 0, price: m.price ?? 100 });
+        watk: m.incPAD ?? 0, str: m.incSTR ?? 0, dex: m.incDEX ?? 0, int: m.incINT ?? 0, luk: m.incLUK ?? 0,
+        hp: m.incMHP ?? 0, def: m.incPDD ?? 0, price: m.price ?? 100 });
     });
     console.log(g.slot, picks.map((p) => `${p.name}(${p.requiredLevel})`).join(", "));
   }

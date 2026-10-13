@@ -377,7 +377,7 @@ export class Windows {
   // ------------------------------------------------------------- skill window
   buildSkill() {
     const W = this.win.skill;
-    const w = this.makeWindow("skill-win", W.backgrnd.w, W.backgrnd.h, null, 320, 70);
+    const w = this.makeWindow("skill-win", W.backgrnd.w, W.backgrnd.h, null, 400, 110);
     this.skill = w;
     for (const k of ["backgrnd", "backgrnd2", "backgrnd3"]) place(el("div", "spr", w), W[k]);
     const tabs = el("div", "skill-tabs", w);
