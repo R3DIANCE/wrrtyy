@@ -30,7 +30,11 @@ export class ExtWindows {
 
   constructor(public w: Windows) {
     const g = w.game;
-    this.equipWin = w.makeWindow("equip-win", 236, 352, "EQUIPMENT", 40, 90);
+    const E = w.win.equip;
+    // The real MapleStory equip panel background is 184×290; we lay our socket
+    // columns out beside it with the stats block underneath, so the window is
+    // wider than the raw sprite but keeps its MapleStory chrome.
+    this.equipWin = w.makeWindow("equip-win", 350, 460, "EQUIPMENT", 40, 50);
     this.invWin = w.makeWindow("inv-win", 222, 318, "ITEM INVENTORY", innerWidth - 470, 110);
     this.craftWin = w.makeWindow("craft-win", 340, 380, "CRAFTING", innerWidth / 2 - 170, 80);
     this.ahWin = w.makeWindow("ah-win", 440, 400, "AUCTION HOUSE", innerWidth / 2 - 220, 70);
@@ -73,11 +77,21 @@ export class ExtWindows {
 
   open(k: "equip" | "inv" | "craft" | "ah") {
     const win = { equip: this.equipWin, inv: this.invWin, craft: this.craftWin, ah: this.ahWin }[k];
-    if (k === "ah" && win.classList.contains("hidden")) this.w.game.ah.refresh(Date.now());
-    if (k === "equip") { this.renderEquipText(); this.w.toggleTextOnly(this.equipWin, "Equipment"); }
-    else if (k === "inv") { this.renderInvText(); this.w.toggleTextOnly(this.invWin, "Inventory"); }
-    else if (k === "craft") { this.renderCraftText(); this.w.toggleTextOnly(this.craftWin, "Crafting"); }
-    else { this.renderAhText(); this.w.toggleTextOnly(this.ahWin, "Auction House"); }
+    const wasHidden = win.classList.contains("hidden");
+    if (k === "ah" && wasHidden) this.w.game.ah.refresh(Date.now());
+    // Panels open in full (sprite) mode; the compact text-only mode is available
+    // as a secondary view via the window's own toggle, not forced on open.
+    win.classList.remove("text-only");
+    if (wasHidden) {
+      if (k === "equip") this.renderEquip();
+      else if (k === "inv") this.renderInv();
+      else if (k === "craft") this.renderCraft();
+      else this.renderAh();
+      win.classList.remove("hidden");
+      win.style.zIndex = String(++this.w.z);
+    } else {
+      win.classList.add("hidden");
+    }
     this.sig = {};
   }
   toggleMenu(anchor: HTMLElement) {
@@ -92,13 +106,15 @@ export class ExtWindows {
     const b = GEAR.get(g.id);
     if (!b) return "";
     const st = gearStats(g), game = this.w.game;
-    const cur = game.eq[b.slot];
+    const sockets = game.socketsFor(b.slot);
+    const cur = sockets.map((s) => game.eq[s]).find((x) => x && x.uid !== g.uid) ?? game.eq[sockets[0]];
     const cs = cur && cur.uid !== g.uid ? gearStats(cur) : null;
     const diff = (k: keyof typeof st) => (cs ? (st[k] - cs[k] > 0 ? ` <span class="up">(+${st[k] - cs[k]})</span>` : st[k] - cs[k] < 0 ? ` <span class="down">(${st[k] - cs[k]})</span>` : "") : "");
-    const lines = (["watk", "str", "dex", "hp", "def"] as const).filter((k) => st[k]).map((k) => `<p>${{ watk: "ATT", str: "STR", dex: "DEX", hp: "Max HP", def: "DEF" }[k]}: +${st[k]}${diff(k)}</p>`).join("");
+    const lines = (["watk", "str", "dex", "int", "luk", "hp", "def"] as const).filter((k) => st[k]).map((k) => `<p>${{ watk: "ATT", str: "STR", dex: "DEX", int: "INT", luk: "LUK", hp: "Max HP", def: "DEF" }[k]}: +${st[k]}${diff(k)}</p>`).join("");
     const pot = g.pot.length ? `<p class="pot-head" style="color:${RARITY_COLOR[g.rarity]}">${RARITY[g.rarity]} Potential</p>${g.pot.map((p) => `<p class="pot">${POT_LABEL[p.stat]}: +${p.pct}%</p>`).join("")}` : "";
     const req = game.stats.level < b.req ? `<p class="tip-warn">REQ LEV ${b.req}</p>` : `<p class="tip-dim">REQ LEV ${b.req}</p>`;
-    return `<div class="gtip" style="--rc:${RARITY_COLOR[g.rarity]}">${stars(g.star)}<b style="color:${RARITY_COLOR[g.rarity]}">${esc(b.name)}${g.star ? ` (+${g.star})` : ""}</b><p class="tip-dim">${RARITY[g.rarity]} · ${SLOT_NAME[b.slot]}</p>${req}${lines}${pot}<p class="tip-dim">Value ≈ ${fmt(gearValue(g))} mesos</p>${note ? `<p class="tip-dim">${note}</p>` : ""}</div>`;
+    const slotLabel = sockets.length > 1 ? "Ring" : SLOT_NAME[b.slot as Slot] ?? b.slot;
+    return `<div class="gtip" style="--rc:${RARITY_COLOR[g.rarity]}">${stars(g.star)}<b style="color:${RARITY_COLOR[g.rarity]}">${esc(b.name)}${g.star ? ` (+${g.star})` : ""}</b><p class="tip-dim">${RARITY[g.rarity]} · ${slotLabel}</p>${req}${lines}${pot}<p class="tip-dim">Value ≈ ${fmt(gearValue(g))} mesos</p>${note ? `<p class="tip-dim">${note}</p>` : ""}</div>`;
   }
   tip(key: string, f: () => string) { this.tips.set(key, f); return `data-tip="${key}"`; }
   gearCell(g: Gear, action: string, note: string, extra = "") {
@@ -160,20 +176,29 @@ export class ExtWindows {
   renderEquip() {
     const g = this.w.game, gt = g.gt;
     const body = this.equipWin.querySelector(".x-body") as HTMLElement;
-    let cells = "";
-    for (const s of SLOTS) {
+    // Real MapleStory equip panel: two side columns of sockets flanking the
+    // character preview (which uses the real UIWindow2 Equip/character background).
+    const leftSlots: Slot[] = ["hat", "earrings", "ring1", "pendant", "weapon"];
+    const rightA: Slot[] = ["cape", "gloves", "shoes", "ring2", "ring3", "ring4", "shield"];
+    const rightB: Slot[] = ["top", "bottom", "shoulder", "belt", "pocket", "emblem", "badge"];
+    const cellFor = (s: Slot) => {
       const it = g.eq[s];
-      cells += it ? `<div class="eslot" data-slot="${s}">${this.gearCell(it, "unequip", "Click to unequip", `data-slot="${s}"`)}</div>`
-        : `<div class="eslot empty" title="${SLOT_NAME[s]}"><span>${SLOT_NAME[s]}</span></div>`;
-    }
+      if (!it) return `<div class="eslot empty" title="${SLOT_NAME[s]}"><span>${SLOT_NAME[s]}</span></div>`;
+      return `<div class="eslot" data-slot="${s}">${this.gearCell(it, "unequip", "Click to unequip", `data-slot="${s}"`)}</div>`;
+    };
+    const E = this.w.win.equip;
+    const bgUrl = E?.backgrnd?.url ?? "";
+    let cells = `<div class="e-left-col">${leftSlots.map(cellFor).join("")}</div>`;
+    cells += `<div class="eprev" ${bgUrl ? `style="background-image:url('${bgUrl}')"` : ""}><img alt="Character preview" src="${charUrlFor(g.look, "stand1", 0)}"></div>`;
+    cells += `<div class="e-right-col">${rightA.map(cellFor).join("")}</div>`;
+    cells += `<div class="e-right-col">${rightB.map(cellFor).join("")}</div>`;
     const [lo, hi] = g.damageRange();
     const row = (k: string, v: string) => `<div class="erow"><span>${k}</span><b>${v}</b></div>`;
-    body.innerHTML = `<div class="egrid">${cells}</div>
-      <div class="eprev"><img alt="Character preview" src="${charUrlFor(g.look, "stand1", 0)}"></div>
+    body.innerHTML = `<div class="egrid-new">${cells}</div>
       <div class="ecp"><small>COMBAT POWER</small><b>${fmt(g.combatPower())}</b></div>
-      <div class="estats">${row("Damage", `${fmt(lo)} ~ ${fmt(hi)}`)}${row("ATT", fmt(g.watk()))}${row("STR", fmt(g.totalStr()))}${row("DEX", fmt(g.totalDex()))}
+      <div class="estats">${row("Damage", `${fmt(lo)} ~ ${fmt(hi)}`)}${row("ATT", fmt(g.watk()))}${row("STR", fmt(g.totalStr()))}${row("DEX", fmt(g.totalDex()))}${row("INT", fmt(g.totalInt()))}${row("LUK", fmt(g.totalLuk()))}
       ${row("Max HP", fmt(g.stats.maxHp))}${row("DEF", fmt(gt.def))}${row("Boss Dmg", `${gt.boss}%`)}${row("EXP / Meso / Drop", `+${gt.exp}% / +${gt.meso}% / +${gt.drop}%`)}</div>
-      <p class="ehint">Click a piece to unequip it. Equip from the Inventory (I).</p>`;
+      <p class="ehint">Click a piece to unequip it. Equip from the Inventory (I). Rings stack across four sockets.</p>`;
   }
 
   // ------------------------------------------------------------- inventory
@@ -233,9 +258,9 @@ export class ExtWindows {
         this.tips.set(tipKey, () => {
           if (out.t !== "gear") return `<b>${esc(r.name)}</b>`;
           const b = GEAR.get(recipeGearId(out.slot, out.tier)!)!;
-          return `<b>${esc(b.name)}</b><p class="tip-dim">${SLOT_NAME[b.slot]} · REQ LEV ${b.req}</p><p>ATT +${b.watk} · STR +${b.str} · DEX +${b.dex} · HP +${b.hp} · DEF +${b.def}</p><p class="tip-dim">Crafting rolls Rare ~ Legendary potential.</p>`;
+          return `<b>${esc(b.name)}</b><p class="tip-dim">${SLOT_NAME[out.slot as Slot]} · REQ LEV ${b.req}</p><p>ATT +${b.watk} · STR +${b.str} · DEX +${b.dex} · INT +${b.int ?? 0} · LUK +${b.luk ?? 0} · HP +${b.hp} · DEF +${b.def}</p><p class="tip-dim">Crafting rolls Rare ~ Legendary potential.</p>`;
         });
-        html += `<div class="xrow ${locked ? "locked" : ""}"><div class="gcell" data-tip="${tipKey}">${icon(ic)}</div><div class="xinfo"><b>${esc(r.name)}</b>${out.t === "gear" ? `<small>${SLOT_NAME[out.slot]} · Lv ${r.level}</small>` : ""}<div class="needs">${this.needsHtml(r)}</div></div>
+        html += `<div class="xrow ${locked ? "locked" : ""}"><div class="gcell" data-tip="${tipKey}">${icon(ic)}</div><div class="xinfo"><b>${esc(r.name)}</b>${out.t === "gear" ? `<small>${SLOT_NAME[out.slot as Slot]} · Lv ${r.level}</small>` : ""}<div class="needs">${this.needsHtml(r)}</div></div>
           <button type="button" class="xbtn" data-act="craft" data-v="${r.id}" ${g.canCraft(r) ? "" : "disabled"}>${locked ? `Lv ${r.level}` : "Craft"}</button></div>`;
       }
       html += `</div>`;
@@ -253,7 +278,7 @@ export class ExtWindows {
         if (tab === "star") {
           const cost = starCost(sel), mat = starMat(sel.star), have = g.mats[mat] ?? 0;
           const st = gearStats(sel), next = gearStats({ ...sel, star: Math.min(MAX_STAR, sel.star + 1) });
-          const gain = (["watk", "str", "dex", "hp", "def"] as const).filter((k) => next[k] > st[k]).map((k) => `${{ watk: "ATT", str: "STR", dex: "DEX", hp: "HP", def: "DEF" }[k]} +${next[k] - st[k]}`).join(" · ");
+          const gain = (["watk", "str", "dex", "int", "luk", "hp", "def"] as const).filter((k) => next[k] > st[k]).map((k) => `${{ watk: "ATT", str: "STR", dex: "DEX", int: "INT", luk: "LUK", hp: "HP", def: "DEF" }[k]} +${next[k] - st[k]}`).join(" · ");
           panel = `<div class="sf-head">${icon(gearIcon(sel.id), "ic lg")}<div><b style="color:${RARITY_INK[sel.rarity]}">${esc(b.name)}</b><div class="stars big">${"★".repeat(sel.star)}<span class="dim">${"★".repeat(MAX_STAR - sel.star)}</span></div></div></div>
             ${sel.star >= MAX_STAR ? `<p class="xnote">Maximum stars reached.</p>` : `<div class="sf-grid"><span>Success</span><b>${Math.round(starRate(sel.star) * 100)}%</b><span>Failure</span><b>${100 - Math.round(starRate(sel.star) * 100)}% (stars kept)</b>
             <span>Next star</span><b>${gain || "—"}</b><span>Cost</span><b class="${g.stats.meso >= cost ? "" : "miss"}">${fmt(cost)} mesos</b>
@@ -448,6 +473,7 @@ export class ExtWindows {
     if (!this.equipWin.classList.contains("text-only")) return;
     const g = this.w.game, gt = g.gt;
     const body = this.equipWin.querySelector(".text-only-body") as HTMLElement;
+    if (!body) return;
     const cells = SLOTS.map((s) => {
       const it = g.eq[s];
       return it ? `<div class="equip-slot" data-slot="${s}"><span class="e-ic" style="background-image:url('${gearIcon(it.id)}')"></span><span class="e-name">${esc(GEAR.get(it.id)?.name ?? "?")}</span><span class="e-stats">${it.star ? `★${it.star}` : ""}</span></div>`
