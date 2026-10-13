@@ -62,7 +62,7 @@ export interface Stats {
   name: string; level: number; exp: number; hp: number; maxHp: number; mp: number; maxMp: number; meso: number; job: string; classId: ClassId;
   str: number; dex: number; int: number; luk: number; ap: number; sp: number; baseHp: number; baseMp: number; fame: number;
 }
-export interface AutoSettings { battle: boolean; hp: boolean; hpPct: number; mp: boolean; mpPct: number; buff: boolean; loot: boolean; ap: boolean; boss: boolean }
+export interface AutoSettings { battle: boolean; hp: boolean; hpPct: number; mp: boolean; mpPct: number; buff: boolean; loot: boolean; ap: boolean; boss: boolean; magnet: boolean }
 
 export type ChatKind = "system" | "exp" | "meso" | "level" | "notice" | "say" | "item";
 
@@ -113,7 +113,7 @@ export class Game {
   snailShell: Sprite | null = null;
   buffs: Record<string, { left: number; dur: number }> = {};
   quick: Record<string, Action | null> = { ...DEFAULT_QUICK };
-  auto: AutoSettings = { battle: false, hp: true, hpPct: 50, mp: true, mpPct: 30, buff: true, loot: true, ap: true, boss: true };
+  auto: AutoSettings = { battle: false, hp: true, hpPct: 50, mp: true, mpPct: 30, buff: true, loot: true, ap: true, boss: true, magnet: true };
   balloon = { text: "", t: 0 };
   projectiles: Projectile[] = [];
   potCd = 0;
@@ -1084,12 +1084,33 @@ export class Game {
   }
 
   updateDrops(dt: number) {
+    const magnet = this.auto.battle && this.auto.magnet;
     for (const d of this.drops) {
       d.t += dt;
       if (d.picked) { d.picked += dt; d.x += (this.p.x - d.x) * Math.min(1, dt * 12); d.y += (this.p.y - 30 - d.y) * Math.min(1, dt * 12); continue; }
-      if (!d.fh) { airMove(this.tree, d, dt); if (d.fh) d.vx = 0; }
+      // Meso magnet: while auto battle runs, resting drops are sucked toward
+      // the player (and collected on contact), like the Meso Magnet / pet loot.
+      if (magnet && d.t > 0.6) {
+        const dx = this.p.x - d.x, dy = (this.p.y - 20) - d.y, dist = Math.hypot(dx, dy) || 1;
+        const pull = Math.min(dist, 900 * dt);
+        d.x += (dx / dist) * pull;
+        d.y += (dy / dist) * pull;
+        d.fh = null; // in flight toward the player; physics stays off
+        d.ignoreFh = undefined;
+        d.vx = 0; d.vy = 0;
+      } else if (!d.fh) {
+        airMove(this.tree, d, dt);
+        if (d.fh) d.vx = 0;
+      }
     }
     this.drops = this.drops.filter((d) => (d.picked ? d.picked < 0.25 : d.t < 60));
+    // Magnet collects anything it has pulled onto the player.
+    if (magnet) {
+      for (const d of this.drops) {
+        if (d.picked) continue;
+        if (Math.abs(d.x - this.p.x) < 40 && Math.abs(d.y - (this.p.y - 20)) < 40) d.picked = 0.001;
+      }
+    }
   }
 
   // ------------------------------------------------------------ equipment

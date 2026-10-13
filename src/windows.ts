@@ -472,7 +472,7 @@ export class Windows {
     this.autoWin = w;
     const g = this.game, a = g.auto;
     const body = el("div", "auto-body", w);
-    const toggle = (label: string, key: "battle" | "hp" | "mp" | "buff" | "loot" | "ap" | "boss", hint: string) => {
+    const toggle = (label: string, key: "battle" | "hp" | "mp" | "buff" | "loot" | "ap" | "boss" | "magnet", hint: string) => {
       const row = el("label", "auto-row", body);
       const cb = el("input", "", row) as HTMLInputElement;
       cb.type = "checkbox"; cb.checked = a[key];
@@ -496,7 +496,8 @@ export class Windows {
     slider("mpPct", "Use when MP is");
     toggle("Auto Buff", "buff", "Recast buffs before they expire");
     toggle("Auto Loot", "loot", "Pick up mesos and items");
-    toggle("Auto Stats", "ap", "Spend Ability Points on level up (STR/DEX)");
+    toggle("Meso Magnet", "magnet", "While auto battle runs, pull all loot to you");
+    toggle("Auto Stats", "ap", "Spend Ability Points on level up (class-aware)");
     toggle("Auto Boss", "boss", "Challenge the stage boss as soon as it is ready");
     const reset = el("button", "auto-reset", body) as HTMLButtonElement;
     reset.type = "button";
