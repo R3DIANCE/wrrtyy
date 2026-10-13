@@ -2,6 +2,7 @@ import { json } from "./assets.ts";
 import { Game } from "./game.ts";
 import { Renderer } from "./gpu.ts";
 import { Hud } from "./ui.ts";
+import { QUICK_KEYS } from "./skills.ts";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const title = document.getElementById("title")!;
@@ -18,25 +19,48 @@ const game = new Game(r);
 let hud: Hud | null = null;
 let running = false;
 
-const KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Alt", "Control", "Shift", " ", "Delete", "End"]);
+const SAVE_KEY = "maple-wayfarer-save";
+const GAME_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Alt", " ", "Tab", ...QUICK_KEYS]);
+
+/** Layout-independent key names: letters lower-case, digits unaffected by Shift. */
+function keyName(e: KeyboardEvent): string {
+  const c = e.code;
+  if (c.startsWith("Key")) return c.slice(3).toLowerCase();
+  if (c.startsWith("Digit")) return c.slice(5);
+  if (c.startsWith("Numpad") && /\d$/.test(c)) return c.slice(-1);
+  const map: Record<string, string> = {
+    ShiftLeft: "Shift", ShiftRight: "Shift", ControlLeft: "Control", ControlRight: "Control", AltLeft: "Alt", AltRight: "Alt",
+    Space: " ", Minus: "-", Equal: "=", Insert: "Insert", Delete: "Delete", Home: "Home", End: "End", PageUp: "PageUp", PageDown: "PageDown",
+  };
+  return map[c] ?? e.key;
+}
+
 addEventListener("keydown", (e: KeyboardEvent) => {
   if (!running) return;
-  if (e.key === "Enter") { e.preventDefault(); hud?.chatInput.focus(); return; }
-  if (KEYS.has(e.key) || e.key.length === 1) e.preventDefault();
-  if (!game.keys.has(e.key)) game.pressed.add(e.key);
-  game.keys.add(e.key);
+  if ((e.target as HTMLElement)?.tagName === "INPUT") return;
+  const k = keyName(e);
+  if (k === "Enter") { e.preventDefault(); hud?.chatInput.focus(); return; }
+  if (k === "Escape") { hud?.wins.closeTop(); return; }
+  if (GAME_KEYS.has(k) || k.length === 1) e.preventDefault();
+  if (!e.repeat && hud) {
+    const w = hud.wins;
+    if (k === "s") w.toggle(w.stat);
+    else if (k === "k") w.toggle(w.skill);
+    else if (k === "i") w.toggle(w.item);
+    else if (k === "b") w.toggleAutoBattle();
+  }
+  if (!game.keys.has(k)) game.pressed.add(k);
+  game.keys.add(k);
 });
-addEventListener("keyup", (e: KeyboardEvent) => {
-  game.keys.delete(e.key);
-  // Shift changes letter case; clear both.
-  if (e.key.length === 1) { game.keys.delete(e.key.toLowerCase()); game.keys.delete(e.key.toUpperCase()); }
-});
+addEventListener("keyup", (e: KeyboardEvent) => { game.keys.delete(keyName(e)); });
 addEventListener("blur", () => game.keys.clear());
 
 function setLoading(t: string | null) {
   loading.textContent = t ?? "";
   loading.classList.toggle("hidden", !t);
 }
+
+try { const sv = JSON.parse(localStorage.getItem("maple-wayfarer-save") ?? "null"); if (sv?.stats?.name) nameInput.value = sv.stats.name; } catch {}
 
 async function boot() {
   try {
@@ -53,21 +77,33 @@ async function boot() {
 
 async function start() {
   if (running || startBtn.disabled) return;
+  let saved: any = null;
+  try { saved = JSON.parse(localStorage.getItem(SAVE_KEY) ?? "null"); } catch {}
   game.stats.name = (nameInput.value.trim() || "Wayfarer").slice(0, 12);
   startBtn.disabled = true;
   title.classList.add("hidden");
   setLoading("Loading the Maple World…");
-  const ui = await json("./data/ui.json");
+  const [ui, win] = await Promise.all([json("./data/ui.json"), json("./data/windows.json")]);
   game.onMapChange = (m) => {
     hud?.setMap(m);
     const src = m.bgmUrl;
     if (bgm.src !== src) { bgm.src = src; bgm.play().catch(() => {}); }
   };
   game.onChat = (k, t) => hud?.addChat(k, t);
-  await game.init(100010000);
-  hud = new Hud(ui, game);
+  const name = game.stats.name;
+  if (saved?.stats?.name === name) game.restore(saved);
+  await game.init(saved?.stats?.name === name && saved.map ? saved.map : 100010000);
+  if (saved?.stats?.name === name) game.restore(saved);
+  game.stats.name = name;
+  hud = new Hud(ui, game, win);
   hud.setMap(game.map);
-  hud.addChat("system", "Arrows move · Alt/C/Space jump · Ctrl/X attack · Shift/A Slash Blast · Z loot · Up at a portal to travel · 1/2 potions");
+  hud.addChat("system", "Arrows move · Alt/C/Space jump · Ctrl/X attack · Shift, Ins, Home, PgUp skills · Del/End potions · Z loot · Up at a portal");
+  hud.addChat("system", "S stats · K skills · I items · B auto battle · Enter chat. Drag icons onto the quick slots; drag off or right-click to remove.");
+  const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(game.save())); } catch {} };
+  let saveT = 0;
+  game.onChange = () => { clearTimeout(saveT); saveT = setTimeout(persist, 800) as unknown as number; };
+  setInterval(persist, 10000);
+  addEventListener("beforeunload", persist);
   bgm.src = game.map.bgmUrl;
   bgm.play().catch(() => {});
   setLoading(null);

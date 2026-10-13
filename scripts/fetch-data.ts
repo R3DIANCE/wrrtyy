@@ -140,6 +140,65 @@ async function buildFx() {
   return fx;
 }
 
+// ---------------- Skills (world version) ----------------
+export const SKILLS = [
+  "0001000", "0001001", "0001002", // Beginner: Three Snails, Recovery, Nimble Feet
+  "1001005", "1001008", "1000003", "1000009", // Warrior: Slash Blast, War Leap, Iron Body, Warrior Mastery
+  "1101011", "1101006", "1100000", "1100009", // Fighter: Brandish, Spirit Blade, Weapon Mastery, Physical Training
+  "1111010", "1110000", // Crusader: Intrepid Slash, Self Recovery
+];
+const jobOf = (id: string) => id.slice(0, 3);
+async function buildSkills() {
+  const out: Record<string, any> = {};
+  await Promise.all(SKILLS.map(async (id) => {
+    const base = `Skill/${jobOf(id)}.img/skill/${id}`;
+    const node = await wz(WORLD_VER, base);
+    const kids: string[] = node?.children ?? [];
+    const [name, desc, icon, iconMouseOver, iconDisabled] = await Promise.all([
+      wz(WORLD_VER, `String/Skill.img/${id}/name`),
+      wz(WORLD_VER, `String/Skill.img/${id}/desc`),
+      sprite(WORLD_VER, `${base}/icon`),
+      sprite(WORLD_VER, `${base}/iconMouseOver`),
+      sprite(WORLD_VER, `${base}/iconDisabled`),
+    ]);
+    const effect = kids.includes("effect") ? await frames(WORLD_VER, `${base}/effect`) : [];
+    const effect0 = kids.includes("effect0") ? await frames(WORLD_VER, `${base}/effect0`) : [];
+    const hit = kids.includes("hit") ? await frames(WORLD_VER, `${base}/hit/0`) : [];
+    out[id] = { id, name: name?.value ?? id, desc: desc?.value ?? "", icon, iconMouseOver, iconDisabled, effect, effect0, hit };
+  }));
+  out.snailShell = await sprite(WORLD_VER, "Item/Etc/0400.img/04000019/info/iconRaw");
+  return out;
+}
+
+// ---------------- Windows / balloon (latest UI) ----------------
+async function buildWindows() {
+  const w: Record<string, any> = {};
+  const btn = async (path: string) => {
+    const o: Record<string, Sprite | null> = {};
+    await Promise.all(["normal", "mouseOver", "pressed", "disabled"].map(async (st) => { o[st] = await sprite(UI_VER, `${path}/${st}/0`); }));
+    return o;
+  };
+  const S = "UI/UIWindow4.img/Stat/main/";
+  w.stat = {
+    backgrnd: await sprite(UI_VER, S + "backgrnd"), backgrnd2: await sprite(UI_VER, S + "backgrnd2"), backgrnd3: await sprite(UI_VER, S + "backgrnd3"),
+    BtStrUp: await btn(S + "BtStrUp"), BtDexUp: await btn(S + "BtDexUp"), BtIntUp: await btn(S + "BtIntUp"), BtLukUp: await btn(S + "BtLukUp"),
+    BtAuto: await btn(S + "BtAuto"),
+  };
+  const K = "UI/UIWindow2.img/Skill/main/";
+  w.skill = {
+    backgrnd: await sprite(UI_VER, K + "backgrnd"), backgrnd2: await sprite(UI_VER, K + "backgrnd2"), backgrnd3: await sprite(UI_VER, K + "backgrnd3"),
+    skill0: await sprite(UI_VER, K + "skill0"), skill1: await sprite(UI_VER, K + "skill1"), skillBlank: await sprite(UI_VER, K + "skillBlank"),
+    BtSpUp: await btn(K + "BtSpUp"),
+  };
+  const B = "UI/ChatBalloon.img/0/";
+  w.balloon = {};
+  await Promise.all(["nw", "n", "ne", "w", "c", "e", "sw", "s", "se", "arrow"].map(async (k) => { w.balloon[k] = await sprite(UI_VER, B + k); }));
+  const clr = await wz(UI_VER, B + "clr");
+  w.balloon.clr = clr?.value ?? null;
+  w.close = await btn("UI/Basic.img/BtClose3");
+  return w;
+}
+
 // ---------------- Mobs ----------------
 async function buildMob(id: number) {
   const info = await getJson(`${API}/GMS/${WORLD_VER}/mob/${id}`);
@@ -205,7 +264,12 @@ async function buildMap(id: number) {
   };
 }
 
+const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7).split(",");
+const want = (k: string) => !only || only.includes(k);
 await mkdir(OUT + "maps", { recursive: true });
+if (want("skills")) { console.log("skills…"); await writeFile(OUT + "skills.json", JSON.stringify(await buildSkills())); }
+if (want("windows")) { console.log("windows…"); await writeFile(OUT + "windows.json", JSON.stringify(await buildWindows())); }
+if (only && !only.some((k) => ["ui", "fx", "maps"].includes(k))) process.exit(0);
 await mkdir(OUT + "mobs", { recursive: true });
 console.log("UI…");
 await writeFile(OUT + "ui.json", JSON.stringify(await buildUi()));

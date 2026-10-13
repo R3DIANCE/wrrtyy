@@ -41,12 +41,16 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 .exp-num { left: 0; right: 0; top: 1px; justify-content: center; }
 .menu { position: absolute; width: 216px; height: 37px; pointer-events: auto; }
 .menu-btn { position: absolute; border: 0; background-color: transparent; background-repeat: no-repeat; cursor: pointer; image-rendering: pixelated; }
-.quick { position: absolute; width: 562px; height: 73px; }
-.quick-grid { position: absolute; display: grid; grid-template-columns: repeat(16, 34.8px); grid-auto-rows: 33.5px; }
-.slot { position: relative; }
-.slot-icon { position: absolute; left: 2px; top: 1px; width: 32px; height: 32px; background-position: center; background-repeat: no-repeat; image-rendering: pixelated; }
-.slot-key { position: absolute; left: 3px; top: 2px; font: bold 9px Arial; color: #fff; text-shadow: 0 0 2px #000, 0 0 1px #000; }
-.slot-count { position: absolute; right: 4px; bottom: 3px; font: bold 10px Arial; color: #fff; text-shadow: 0 0 2px #000, 0 0 1px #000; }
+.quick { position: absolute; width: 562px; height: 73px; pointer-events: auto; }
+.quick-grid { position: absolute; display: grid; grid-template-columns: repeat(16, 32px); grid-auto-rows: 32px; gap: 3px; z-index: 1; }
+.slot { position: relative; width: 32px; height: 32px; cursor: default; user-select: none; }
+.slot.filled { cursor: grab; }
+.slot.dragging .slot-icon { opacity: .3; }
+.slot:hover::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,.75); border-radius: 3px; pointer-events: none; }
+.slot-icon { position: absolute; inset: 0; background-position: center; background-repeat: no-repeat; image-rendering: pixelated; }
+.slot.off .slot-icon { filter: grayscale(.6) brightness(.75); }
+.slot-key { position: absolute; left: 1px; top: 0; font: bold 9px/10px Arial; color: #fff; text-shadow: 0 0 2px #000, 0 0 1px #000, 0 0 1px #000; pointer-events: none; }
+.slot-count { position: absolute; right: 1px; bottom: 0; font: bold 10px/11px Arial; color: #fff; text-shadow: 0 0 2px #000, 0 0 1px #000, 0 0 1px #000; pointer-events: none; }
 .chat { position: absolute; width: 420px; pointer-events: auto; }
 .nine { position: relative; }
 .chat-log { position: absolute; left: 10px; right: 8px; top: 8px; bottom: 6px; overflow-y: auto; font: 12px/16px Arial; scrollbar-width: thin; }
@@ -68,3 +72,80 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 .mini-dot { position: absolute; left: -3px; top: -6px; width: 6px; height: 6px; border-radius: 50%; background: #ffe33b; border: 1px solid #6b4b00; }
 .mini-portal { position: absolute; width: 6px; height: 6px; margin: -7px 0 0 -3px; border-radius: 50%; background: #3cb8ff; border: 1px solid #034; }
 .nametag { position: absolute; left: 0; top: 0; padding: 1px 4px 2px; background: rgba(0,0,0,.72); border-radius: 2px; font: 12px Arial; color: #fff; white-space: nowrap; }
+
+/* ---------- quick-slot drag, tooltip ---------- */
+.drag-ghost { position: fixed; left: 0; top: 0; width: 32px; height: 32px; z-index: 100; pointer-events: none; background-position: center; background-repeat: no-repeat; image-rendering: pixelated; opacity: .85; }
+.tooltip { position: fixed; z-index: 90; max-width: 260px; padding: 8px 10px; background: rgba(17, 24, 39, .93); border: 1px solid #7d8597; border-radius: 4px;
+  font: 11px/1.45 Arial; color: #e8e8e8; pointer-events: none; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+.tooltip b { display: block; font-size: 13px; color: #fff; margin-bottom: 3px; }
+.tooltip p { margin-top: 4px; }
+.tip-dim { color: #a9b1c1; }
+.tip-hl { color: #ffd34d; font-weight: bold; }
+.tip-warn { color: #ff7a7a; }
+.grab { cursor: grab; }
+
+/* ---------- windows ---------- */
+.win-layer { position: fixed; inset: 0; pointer-events: none; z-index: 15; }
+.win { position: absolute; pointer-events: auto; user-select: none; font: 11px Arial; color: #333; }
+.win-drag { position: absolute; left: 0; right: 24px; top: 0; height: 22px; cursor: move; }
+.spr-btn { position: absolute; border: 0; padding: 0; background-color: transparent; background-repeat: no-repeat; cursor: pointer; image-rendering: pixelated; }
+.spr-btn:disabled { cursor: default; }
+.win-css { background: linear-gradient(#f7f7f7, #e9e9ee); border: 1px solid #3b1d4a; border-radius: 7px; box-shadow: 0 0 0 2px #7c3e93 inset, 0 0 0 3px #3b1d4a inset, 0 6px 18px rgba(0,0,0,.35); }
+.win-css::before { content: ""; position: absolute; left: 3px; right: 3px; top: 3px; height: 19px; border-radius: 5px 5px 0 0; background: linear-gradient(#8e4aa8, #5a2670); }
+.win-title { position: absolute; left: 0; right: 0; top: 7px; text-align: center; font: bold 10px Arial; letter-spacing: .5px; color: #ffd43b; text-shadow: 0 1px 0 #3b1d4a; }
+.stat-val { position: absolute; left: 72px; width: 110px; font: 11px/12px Arial; color: #333; white-space: nowrap; overflow: hidden; }
+.stat-ap { position: absolute; left: 66px; top: 199px; width: 29px; text-align: center; font: bold 12px Arial; color: #333; }
+.stat-note { position: absolute; left: 14px; right: 14px; top: 306px; font: 10px Arial; color: #6b7280; text-align: center; }
+.skill-tabs { position: absolute; left: 10px; top: 25px; display: flex; gap: 2px; }
+.skill-tab { font: bold 9px Arial; padding: 3px 5px; border: 1px solid #b7b7c4; border-bottom: 0; border-radius: 4px 4px 0 0; background: linear-gradient(#fafafa, #dcdce4); color: #555; cursor: pointer; }
+.skill-tab.on { background: linear-gradient(#ffb43b, #f08a12); color: #fff; border-color: #c0650a; }
+.skill-tab.locked { color: #aaa; }
+.skill-banner-icon { position: absolute; left: 10px; top: 53px; width: 32px; height: 32px; background-position: center; background-repeat: no-repeat; image-rendering: pixelated; }
+.skill-banner { position: absolute; left: 50px; top: 55px; color: #fff; text-shadow: 0 1px 0 #00385f; }
+.skill-banner b { display: block; font: bold 13px Arial; }
+.skill-banner span { font: 10px Arial; opacity: .9; }
+.skill-list { position: absolute; left: 12px; top: 98px; width: 296px; height: 236px; }
+.skill-row { position: absolute; width: 140px; height: 35px; background-repeat: no-repeat; }
+.skill-icon { position: absolute; left: 1px; top: 1px; width: 32px; height: 32px; background-position: center; background-repeat: no-repeat; image-rendering: pixelated; }
+.skill-name { position: absolute; left: 39px; top: 4px; width: 98px; font: bold 10px Arial; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skill-lv { position: absolute; left: 39px; top: 21px; font: 10px Arial; color: #666; }
+.skill-up { position: absolute; left: 124px; top: 20px; width: 12px; height: 12px; }
+.skill-up .spr-btn { left: 0 !important; top: 0 !important; }
+.skill-sp { position: absolute; right: 18px; top: 339px; font: bold 10px Arial; color: #555; }
+.skill-sp b { color: #e8820c; font-size: 12px; margin-left: 4px; }
+.item-tabs { position: absolute; left: 10px; top: 27px; display: flex; gap: 2px; }
+.item-tabs span { font: bold 9px Arial; padding: 2px 7px; border-radius: 3px 3px 0 0; background: #d6d6de; color: #777; }
+.item-tabs span.on { background: linear-gradient(#ffb43b, #f08a12); color: #fff; }
+.item-grid { position: absolute; left: 10px; top: 44px; display: grid; grid-template-columns: repeat(4, 40px); grid-auto-rows: 26px; gap: 2px; }
+.item-grid { grid-auto-rows: 40px; gap: 2px; }
+.item-cell { position: relative; background: #fff; border: 1px solid #cfd0d8; border-radius: 3px; }
+.item-icon { position: absolute; inset: 3px; background-position: center; background-repeat: no-repeat; image-rendering: pixelated; }
+.item-meso { position: absolute; left: 10px; right: 10px; bottom: 7px; padding: 3px 6px; background: #fff; border: 1px solid #cfd0d8; border-radius: 3px; font: bold 10px Arial; text-align: right; color: #555; }
+.item-meso { display: none; }
+.auto-body { position: absolute; left: 10px; right: 10px; top: 30px; display: flex; flex-direction: column; gap: 5px; }
+.auto-row { display: flex; gap: 7px; align-items: flex-start; cursor: pointer; }
+.auto-row input { margin-top: 2px; accent-color: #f08a12; }
+.auto-row b { display: block; font: bold 11px Arial; color: #333; }
+.auto-row small { display: block; font: 10px Arial; color: #777; }
+.auto-slider { display: flex; flex-direction: column; gap: 1px; padding-left: 20px; font: 10px Arial; color: #555; }
+.auto-slider input { width: 100%; accent-color: #f08a12; }
+.auto-reset { margin-top: 4px; align-self: flex-start; font: bold 10px Arial; padding: 3px 8px; border: 1px solid #b7b7c4; border-radius: 3px; background: linear-gradient(#fafafa, #dcdce4); color: #a33; cursor: pointer; }
+
+.auto-btn { position: absolute; pointer-events: auto; display: flex; align-items: center; gap: 5px; height: 20px; padding: 0 9px 0 7px;
+  font: bold 10px Arial; letter-spacing: .5px; color: #fff; cursor: pointer; border-radius: 10px; border: 1px solid #1d2a3a;
+  background: linear-gradient(#5b6b80, #34404f); box-shadow: inset 0 1px 0 rgba(255,255,255,.3); text-shadow: 0 1px 0 #000; }
+.auto-btn .auto-dot { width: 7px; height: 7px; border-radius: 50%; background: #9aa3ad; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+.auto-btn.on { background: linear-gradient(#ffb43b, #e5730a); border-color: #8a4200; }
+.auto-btn.on .auto-dot { background: #7dff6b; box-shadow: 0 0 6px #7dff6b; animation: autopulse 1s infinite alternate; }
+@keyframes autopulse { from { opacity: .5; } to { opacity: 1; } }
+
+/* ---------- buffs ---------- */
+.buffbar { position: absolute; right: 6px; top: 6px; display: flex; flex-direction: row-reverse; gap: 3px; pointer-events: auto; }
+.buff { position: relative; width: 32px; height: 32px; background-position: center; background-repeat: no-repeat; image-rendering: pixelated; border-radius: 3px; overflow: hidden; }
+.buff-shade { position: absolute; left: 0; right: 0; top: 0; background: rgba(0,0,0,.45); pointer-events: none; }
+.buff-time { position: absolute; right: 1px; bottom: 0; z-index: 1; font: bold 10px Arial; color: #fff; text-shadow: 0 0 2px #000, 0 0 1px #000; }
+
+/* ---------- chat balloon ---------- */
+.balloon { position: absolute; left: 0; top: 0; margin-top: -13px; pointer-events: none; }
+.bp { position: absolute; background-repeat: repeat; image-rendering: pixelated; }
+.balloon-text { position: relative; max-width: 150px; min-width: 12px; font: 12px/14px Arial; color: #000; text-align: center; word-break: break-word; }

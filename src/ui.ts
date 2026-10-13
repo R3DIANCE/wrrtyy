@@ -2,6 +2,7 @@
 import type { Sprite } from "./assets.ts";
 import type { ChatKind, Game, MapData } from "./game.ts";
 import { expToLevel } from "./game.ts";
+import { Windows } from "./windows.ts";
 
 type UiData = Record<string, any>;
 
@@ -61,7 +62,8 @@ export class Hud {
   hpFill!: HTMLElement; mpFill!: HTMLElement;
   hpText!: HTMLElement; mpText!: HTMLElement; lvText!: HTMLElement; nameText!: HTMLElement;
   exp!: HTMLElement; expFill!: HTMLElement; expText!: HTMLElement; expCover!: HTMLElement;
-  quick!: HTMLElement; redCount!: HTMLElement; blueCount!: HTMLElement;
+  quick!: HTMLElement;
+  wins!: Windows;
   menu!: HTMLElement;
   chat!: HTMLElement; chatLog!: HTMLElement; chatInput!: HTMLInputElement;
   mini!: HTMLElement; miniImg!: HTMLElement; miniDot!: HTMLElement; miniName!: HTMLElement; miniStreet!: HTMLElement; miniMark!: HTMLElement; miniPortals: HTMLElement[] = [];
@@ -71,14 +73,16 @@ export class Hud {
   miniScale = 1;
   miniInfo: MapData["miniMap"] | null = null;
 
-  constructor(public ui: UiData, public game: Game) {
+  constructor(public ui: UiData, public game: Game, public win: any) {
     this.root = el("div", "hud", document.body);
     this.status = el("div", "status", this.root);
     this.nameTag = el("div", "nametag", this.root);
     for (const set of [ui.lvNumber, ui.gaugeNumber, ui.expNumber]) for (const sp of Object.values(set as Record<string, Sprite | null>)) if (sp) warm(sp.url);
     this.buildStatus();
     this.buildExp();
-    this.buildQuick();
+    this.wins = new Windows(game, win, this.root);
+    this.quick = el("div", "quick", this.root);
+    this.wins.buildQuick(this.quick, ui);
     this.buildMenu();
     this.buildChat();
     this.buildMinimap();
@@ -132,40 +136,9 @@ export class Hud {
     this.expText = el("div", "num exp-num", this.exp);
   }
 
-  buildQuick() {
-    const u = this.ui;
-    this.quick = el("div", "quick", this.root);
-    spr(u.quickBack, 0, 0, this.quick);
-    const grid = el("div", "quick-grid", this.quick);
-    Object.assign(grid.style, { left: `${-u.quickBack.ox + 4}px`, top: `${-u.quickBack.oy + 3}px` });
-    const row1 = ["Shift", "Ins", "Hm", "PgU", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "="];
-    const row2 = ["Ctrl", "Del", "End", "PgD", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"];
-    const icons: Record<string, string> = {
-      Shift: this.game.fxData.slashIcon?.url,
-      Ctrl: "https://maplestory.io/api/GMS/240/item/1302000/icon",
-      Del: "https://maplestory.io/api/GMS/240/item/2000000/icon",
-      End: "https://maplestory.io/api/GMS/240/item/2000003/icon",
-      "1": "https://maplestory.io/api/GMS/240/item/2000000/icon",
-      "2": "https://maplestory.io/api/GMS/240/item/2000003/icon",
-    };
-    for (const key of [...row1, ...row2]) {
-      const slot = el("div", "slot", grid);
-      if (icons[key]) {
-        const ic = el("div", "slot-icon", slot);
-        ic.dataset.item = key;
-        bg(ic, icons[key]);
-        if (key === "Del" || key === "1") this.redCount = el("span", "slot-count", slot);
-        if (key === "End" || key === "2") this.blueCount = el("span", "slot-count", slot);
-      }
-      const k = el("span", "slot-key", slot);
-      k.textContent = key;
-    }
-    spr(u.quickCover, 0, 0, this.quick, "nopoint");
-  }
-
   buildMenu() {
     this.menu = el("div", "menu", this.root);
-    const names: Record<string, string> = { CashShop: "Cash Shop", Event: "Event", Character: "Character", Community: "Community", Setting: "Settings", Menu: "Menu" };
+    const names: Record<string, string> = { CashShop: "Inventory (I)", Event: "Event", Character: "Character Stats (S)", Community: "Community", Setting: "Auto Settings", Menu: "Skills (K)" };
     for (const [k, states] of Object.entries(this.ui.menu as Record<string, Record<string, Sprite>>)) {
       const n = states.normal;
       const b = el("button", "menu-btn", this.menu);
@@ -178,7 +151,14 @@ export class Hud {
       b.addEventListener("mouseleave", () => (b.style.backgroundImage = `url("${n.url}")`));
       b.addEventListener("mousedown", () => (b.style.backgroundImage = `url("${states.pressed.url}")`));
       b.addEventListener("mouseup", () => (b.style.backgroundImage = `url("${states.mouseOver.url}")`));
-      b.addEventListener("click", () => this.addChat("system", `${names[k]} is not available in this world yet.`));
+      b.addEventListener("click", () => {
+        const w = this.wins;
+        if (k === "Character") w.toggle(w.stat);
+        else if (k === "Menu") w.toggle(w.skill);
+        else if (k === "Setting") w.toggle(w.autoWin);
+        else if (k === "CashShop") w.toggle(w.item);
+        else this.addChat("system", `${names[k]} is not available in this world yet.`);
+      });
     }
   }
 
@@ -226,7 +206,7 @@ export class Hud {
       e.stopPropagation();
       if (e.key === "Enter") {
         const t = this.chatInput.value.trim();
-        if (t) this.addChat("say", `${this.game.stats.name} : ${t}`);
+        if (t) this.game.say(t);
         this.chatInput.value = "";
         this.chatInput.blur();
       } else if (e.key === "Escape") this.chatInput.blur();
@@ -305,9 +285,9 @@ export class Hud {
     const qH = u.quickCover.h;
     const chatW = 424;
     // Fold the quick slots to 8 columns when the screen is too narrow for all 16.
-    const fullQ = u.quickCover.w + 4;
-    const halfQ = 8 * 34.8 + 22;
-    const compact = W < chatW + total + fullQ + 24;
+    const fullQ = -u.quickCover.ox + u.quickCover.w + 2;
+    const halfQ = 12 + 8 * 35;
+    const compact = W < chatW + total + fullQ + 8;
     const qW = compact ? halfQ : fullQ;
     this.quick.style.width = `${qW}px`;
     this.quick.style.overflow = compact ? "hidden" : "visible";
@@ -323,13 +303,15 @@ export class Hud {
     Object.assign(this.menu.style, { left: `${x + statusW + 10}px` });
     this.quick.style.display = W - qW < total + 8 ? "none" : "";
     Object.assign(this.mini.style, { left: "4px", top: "4px" });
+    const qLeft = W - qW;
+    Object.assign(this.wins.autoBtn.style, { left: `${qLeft + 12}px`, top: `${H - expH - qH - 24}px` });
     this.last = "";
   }
 
   update() {
     const g = this.game, s = g.stats, u = this.ui;
     const need = Math.round(expToLevel(s.level));
-    const key = `${s.level}|${s.hp}|${s.maxHp}|${s.mp}|${s.maxMp}|${s.exp}|${s.name}|${g.potions.red}|${g.potions.blue}`;
+    const key = `${s.level}|${s.hp}|${s.maxHp}|${s.mp}|${s.maxMp}|${s.exp}|${s.name}`;
     if (key !== this.last || (performance.now() % 2000 < 20)) {
       this.last = key;
       this.hpFill.style.width = `${Math.round((s.hp / s.maxHp) * u.hpGauge.w)}px`;
@@ -342,19 +324,14 @@ export class Hud {
       const gw = Number((this.exp.querySelector(".exp-fill") as HTMLElement).dataset.w);
       (this.exp.querySelector(".exp-fill") as HTMLElement).style.width = `${Math.round((gw * pct) / 100)}px`;
       digits(this.expText, u.expNumber, `${s.exp}[${pct.toFixed(2)}%]`);
-      if (this.redCount) this.redCount.textContent = String(g.potions.red);
-      if (this.blueCount) this.blueCount.textContent = String(g.potions.blue);
-      for (const c of this.quick.querySelectorAll(".slot-count")) {
-        const k = (c.parentElement!.querySelector(".slot-icon") as HTMLElement).dataset.item;
-        const isRed = k === "Del" || k === "1";
-        c.textContent = String(isRed ? g.potions.red : g.potions.blue);
-      }
     }
     // Name tag & minimap marker follow the player every frame.
     const p = g.p;
     const nx = Math.round(p.x - g.cam.x), ny = Math.round(p.y - g.cam.y + 4);
     this.nameTag.textContent = s.name;
     this.nameTag.style.transform = `translate(${nx}px, ${ny}px) translateX(-50%)`;
+    this.wins.renderBalloon(nx, Math.round(p.y - g.cam.y - 78));
+    this.wins.update();
     if (this.miniInfo && this.miniDot) {
       const [x, y] = this.miniPos(p.x, p.y);
       this.miniDot.style.transform = `translate(${x}px, ${y}px)`;
