@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Maple Wayfarer — a MapleStory-style WebGPU platformer</title>
+  <!-- Modern MapleStory HUD tokens & windows -->
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <canvas id="game" aria-label="Game"></canvas>
+  <section id="title" class="overlay">
+    <div class="login flex flex-col items-center justify-center text-center px-6 py-12">
+      <div class="flex items-center gap-4 mb-4">
+        <img src="https://maplestory.io/api/GMS/240/mob/1210102/render/stand/0" alt="" class="w-16 h-16 image-rendering-pixelated rounded" />
+        <div class="text-left">
+          <h1 class="text-3xl font-bold text-lime-400 tracking-wide">Maple Wayfarer</h1>
+          <p class="text-xs text-muted-2 mt-1 leading-relaxed">A fan-made MapleStory-style platformer · WebGPU + Bun</p>
+        </div>
+      </div>
+
+      <label class="field mb-3">Character name
+        <input id="name-input" maxlength="12" value="Wayfarer" class="w-full mt-1 px-3 py-2 font-semibold text-sm rounded border border-slate-600 bg-slate-800 text-white outline-none focus:border-cyan-500" />
+      </label>
+
+      <label class="field mb-3">Class
+        <select id="class-select" aria-label="Character class" class="w-full mt-1 px-3 py-2 font-semibold text-sm rounded border border-slate-600 bg-slate-800 text-white outline-none focus:border-cyan-500 cursor-pointer"></select>
+      </label>
+
+      <ul class="keys mb-4 flex flex-col gap-1.5 max-w-xs">
+        <li><b class="w-72 text-white whitespace-nowrap">← →</b><span>Move</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">Alt / Space</b><span>Jump</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">↑ ↓</b><span>Ladders, portals</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">Ctrl / X</b><span>Attack</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">Shift / Ins</b><span>Skills</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">Z</b><span>Loot</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">↓ + Jump</b><span>Drop down</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">Del / End</b><span>Potions</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">S / K / E / I</b><span>Stats, skills, gear</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">B</b><span>Auto battle</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">J / H</b><span>Craft, auction</span></li>
+        <li><b class="w-72 text-white whitespace-nowrap">Boss</b><span>Every 25 kills</span></li>
+      </ul>
+
+      <button id="start-btn" type="button" class="w-full py-3 font-bold text-sm leading-relaxed cursor-pointer rounded border border-cyan-700 bg-gradient-to-b from-cyan-400 to-cyan-600 shadow-inner transition-filter hover:brightness-110 disabled:opacity-55 disabled:filter-saturate-60" disabled>Starting WebGPU…</button>
+
+      <p class="fine mt-3 text-center text-muted-2">Not affiliated with NEXON. Game art is loaded live from maplestory.io and belongs to NEXON.</p>
+    </div>
+  </section>
+  <div id="loading" class="loading hidden"></div>
+  <section id="gpu-error" class="overlay hidden">
+    <div class="login"><h1>WebGPU is required</h1><p>Use a recent Chrome, Edge, or Safari 26+, or open this page in its own tab.</p><p class="err-detail"></p></div>
+  </section>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

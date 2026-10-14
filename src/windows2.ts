@@ -1,0 +1,530 @@
+// Idle-RPG windows: Equipment, Inventory, Crafting, Auction House, stage/boss HUD, offline rewards and the main menu.
+import { AH_TAX, goodsName, goodsValue, type Goods } from "./auction.ts";
+import { charUrlFor } from "./game.ts";
+import { ItemBrowser } from "./item-browser.ts";
+import {
+  GEAR, MATS, MAX_STAR, POT_LABEL, RARITY, RARITY_COLOR, RARITY_INK, SLOTS, SLOT_NAME, cubeCost, gearIcon, gearStats, gearValue, matIcon,
+  npcSellPrice, recipeGearId, recipes, starCost, starMat, starRate, type Gear, type Recipe, type Slot,
+} from "./items.ts";
+import { ITEMS, itemIcon } from "./skills.ts";
+import { renderGearTooltip, renderUseTooltip, renderMatTooltip } from "./tooltip.ts";
+import { clampWindow, type Windows } from "./windows.ts";
+import { el, esc, fmt, icon, stars, dur } from "./util.ts";
+
+type Tab<T extends string> = { cur: T };
+
+export class ExtWindows {
+  equipWin: HTMLElement; invWin: HTMLElement; craftWin: HTMLElement; ahWin: HTMLElement; menuPop: HTMLElement;
+  stageHud: HTMLElement; bossBar: HTMLElement; offline: HTMLElement | null = null;
+  items: ItemBrowser;
+  tips = new Map<string, () => string>();
+  sig: Record<string, string> = {};
+  invTab: Tab<"equip" | "use" | "etc" | "setup" | "cash" | "dec"> = { cur: "equip" };
+  invSearch = "";
+  craftTab: Tab<"gear" | "refine" | "star" | "cube"> = { cur: "gear" };
+  ahTab: Tab<"browse" | "sell" | "mine"> = { cur: "browse" };
+  ahFilter: "all" | "gear" | "mat" | "use" = "all";
+  pick: string | null = null; // gear uid chosen in Star Force / Cube
+  lastResult = "";
+  equipAnimFrame = 0;
+
+  constructor(public w: Windows) {
+    const g = w.game;
+    const E = w.win.equip;
+    // Modern MapleStory exact coordinates & dimensions (1:1 with reference)
+    this.equipWin = w.makeWindow("equip-win", 320, 395, "EQUIPMENT INVENTORY", 300, 176);
+    this.invWin = w.makeWindow("inv-win", 412, 478, "INVENTORY", 584, 176);
+    this.craftWin = w.makeWindow("craft-win", 340, 380, "CRAFTING", innerWidth / 2 - 170, 80);
+    this.ahWin = w.makeWindow("ah-win", 440, 400, "AUCTION HOUSE", innerWidth / 2 - 220, 70);
+
+    // Windows start closed by default; toggled with dedicated menu buttons or hotkeys
+    for (const win of [this.equipWin, this.invWin, this.craftWin, this.ahWin]) {
+      el("div", "x-body", win);
+      win.addEventListener("click", (e) => this.onClick(e as MouseEvent));
+      win.addEventListener("contextmenu", (e) => this.onRightClick(e as MouseEvent));
+      win.addEventListener("pointermove", (e) => {
+        if (w.ghost) return;
+        const t = (e.target as HTMLElement).closest<HTMLElement>("[data-tip]");
+        const f = t && this.tips.get(t.dataset.tip!);
+        if (f) w.showTip(f(), (e as PointerEvent).clientX, (e as PointerEvent).clientY); else w.hideTip();
+      });
+      win.addEventListener("pointerleave", () => w.hideTip());
+    }
+    w.item = this.invWin;
+
+    this.menuPop = el("div", "menu-pop hidden", document.body);
+    this.items = new ItemBrowser(w);
+    const entries: [string, string, () => void][] = [
+      ["Character Stats", "S", () => w.toggle(w.stat)], ["Skills", "K", () => w.toggle(w.skill)], ["Equipment", "E", () => this.open("equip")],
+      ["Inventory", "I", () => this.open("inv")], ["Crafting", "J", () => this.open("craft")], ["Auction House", "H", () => this.open("ah")],
+      ["All Items", "L", () => this.items.open()],
+      ["Auto Settings", "B·RMB", () => w.toggle(w.autoWin)],
+    ];
+    for (const [label, key, fn] of entries) {
+      const b = el("button", "menu-pop-item", this.menuPop) as HTMLButtonElement;
+      b.type = "button"; b.innerHTML = `<span>${label}</span><kbd>${key}</kbd>`;
+      b.addEventListener("click", () => { this.menuPop.classList.add("hidden"); fn(); });
+    }
+    addEventListener("pointerdown", (e) => { if (!(e.target as HTMLElement).closest(".menu-pop, .menu-btn")) this.menuPop.classList.add("hidden"); });
+
+    this.stageHud = el("div", "stage-hud", w.hudRoot);
+    this.stageHud.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest(".boss-go")) g.challengeBoss();
+      if (target.closest(".auto-boss-toggle")) {
+        g.auto.boss = !g.auto.boss;
+        g.onChat("notice", g.auto.boss ? "Auto Boss is ON. Stage boss will be challenged automatically." : "Auto Boss is OFF.");
+        g.onChange();
+      }
+    });
+    this.bossBar = el("div", "boss-bar hidden", w.hudRoot);
+    g.onBoss = (m) => {
+      this.bossBar.classList.toggle("hidden", !m);
+      if (m) this.bossBar.innerHTML = `${icon(m.data.books.stand?.[0]?.url ?? "", "boss-ic")}<div class="boss-main"><div class="boss-name">${esc(m.data.name.trim())} <small>Lv.${m.data.meta?.level ?? "?"}</small></div><div class="boss-hp"><div class="boss-fill"></div><span class="boss-num"></span></div></div><div class="boss-time"></div>`;
+    };
+    g.onOffline = (r) => this.showOffline(r);
+  }
+
+  open(k: "equip" | "inv" | "craft" | "ah") {
+    const win = { equip: this.equipWin, inv: this.invWin, craft: this.craftWin, ah: this.ahWin }[k];
+    const wasHidden = win.classList.contains("hidden");
+    if (k === "ah" && wasHidden) this.w.game.ah.refresh(Date.now());
+    if (k === "equip") this.renderEquip();
+    else if (k === "inv") this.renderInv();
+    else if (k === "craft") this.renderCraft();
+    else this.renderAh();
+    if (wasHidden) {
+      win.classList.remove("hidden");
+      clampWindow(win);
+    }
+    this.sig = {};
+  }
+  toggleMenu(anchor: HTMLElement) {
+    const r = anchor.getBoundingClientRect();
+    this.menuPop.classList.toggle("hidden");
+    this.menuPop.style.left = `${Math.min(innerWidth - 170, r.left - 60)}px`;
+    this.menuPop.style.bottom = `${innerHeight - r.top + 4}px`;
+  }
+
+  // ------------------------------------------------------------- tooltips
+  gearTip(g: Gear, note = "") {
+    const isEquipped = Object.values(this.w.game.eq).some((eq) => eq?.uid === g.uid);
+    return renderGearTooltip(g, isEquipped, note, this.w.game.stats.level);
+  }
+  tip(key: string, f: () => string) { this.tips.set(key, f); return `data-tip="${key}"`; }
+  gearCell(g: Gear, action: string, note: string, extra = "") {
+    return `<div class="gcell r${g.rarity}" data-act="${action}" data-uid="${g.uid}" ${this.tip("g" + g.uid, () => this.gearTip(g, note))} ${extra}>${icon(gearIcon(g.id))}${g.star ? `<span class="gstar">★${g.star}</span>` : ""}</div>`;
+  }
+
+  // ------------------------------------------------------------- clicks
+  onClick(e: MouseEvent) {
+    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
+    if (!t) return;
+    const g = this.w.game, a = t.dataset.act!, uid = t.dataset.uid ?? "";
+    this.w.hideTip();
+    switch (a) {
+      case "unequip": g.unequip(t.dataset.slot as Slot); break;
+      case "equip": g.equip(uid); break;
+      case "invtab": this.invTab.cur = t.dataset.v as any; break;
+      case "selljunk": g.sellJunk(); break;
+      case "crafttab": this.craftTab.cur = t.dataset.v as any; this.lastResult = ""; break;
+      case "craft": { const r = recipes().find((x) => x.id === t.dataset.v); if (r) this.lastResult = g.craft(r) ?? ""; break; }
+      case "pick": this.pick = uid; this.lastResult = ""; break;
+      case "star": {
+        const r = g.enhance(this.pick ?? "");
+        this.lastResult = r === "success" ? "SUCCESS" : r === "fail" ? "FAILED" : r === "max" ? "MAX STARS" : r === "cost" ? "NOT ENOUGH MESOS OR MATERIALS" : "";
+        this.flash(r === "success");
+        break;
+      }
+      case "cube": { const ok = g.cube(this.pick ?? ""); this.lastResult = ok ? "POTENTIAL RESET" : "NOT ENOUGH MESOS OR SLIME BUBBLES"; this.flash(ok); break; }
+      case "ahtab": this.ahTab.cur = t.dataset.v as any; break;
+      case "ahfilter": this.ahFilter = t.dataset.v as any; break;
+      case "ahrefresh": if (g.stats.meso >= 100) { g.stats.meso -= 100; g.ah.listings = []; g.ah.refresh(Date.now()); g.onChange(); } break;
+      case "buy": g.ahBuy(t.dataset.v!); break;
+      case "list": {
+        const row = t.closest<HTMLElement>(".ah-row")!;
+        const price = Math.max(1, Math.round(Number((row.querySelector("input") as HTMLInputElement).value) || 0));
+        const goods = this.sellGoods(t.dataset.v!);
+        if (goods) g.ahList(goods, price);
+        break;
+      }
+      case "collect": g.ahCollect(t.dataset.v!); break;
+      case "open-equip": this.open("equip"); break;
+      case "open-shop": this.items.open(); break;
+      case "open-storage": this.open("ah"); break;
+      case "open-boss": if (g.bossReady()) g.challengeBoss(); else g.onChat("notice", "Stage boss not ready yet. Keep defeating monsters!"); break;
+      case "open-bag": this.open("inv"); break;
+      case "sort":
+        g.bag.sort((a, b) => b.rarity - a.rarity || (GEAR.get(b.id)?.req ?? 0) - (GEAR.get(a.id)?.req ?? 0));
+        g.onChange();
+        break;
+      case "lock":
+        g.onChat("system", "Item protection lock is active.");
+        break;
+      default: return;
+    }
+    this.sig = {};
+  }
+  onRightClick(e: MouseEvent) {
+    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-act='equip']");
+    if (!t) return;
+    e.preventDefault();
+    this.w.hideTip();
+    this.w.game.sellGear(t.dataset.uid!);
+    this.sig = {};
+  }
+  flash(ok: boolean) {
+    const r = this.craftWin.querySelector(".craft-result");
+    r?.classList.remove("ok", "bad");
+    requestAnimationFrame(() => r?.classList.add(ok ? "ok" : "bad"));
+  }
+
+  // ------------------------------------------------------------- equipment
+  renderEquip() {
+    const g = this.w.game;
+    const body = this.equipWin.querySelector(".x-body") as HTMLElement;
+    if (!body) return;
+
+    // Modern MapleStory Equipment Layout (exact 1:1 match to reference)
+    const leftCol1: Slot[] = ["ring1", "ring2", "ring3", "ring4", "pocket"];
+    const leftCol2: Slot[] = ["pendant", "face", "eye", "earrings", "belt"];
+    const rightCol1: Slot[] = ["hat", "top", "bottom", "shoes", "gloves"];
+    const rightCol2: Slot[] = ["cape", "weapon", "shield", "shoulder", "emblem"];
+
+    const cellFor = (s: Slot) => {
+      const it = g.eq[s];
+      if (!it) {
+        return `<div class="eslot empty" data-slot="${s}" ${this.tip("eslot-" + s, () => `<div class="ms-tooltip-card p-2 min-w-[130px] text-center"><div class="tt-title text-[12px] text-slate-200">${SLOT_NAME[s]}</div><div class="text-[9.5px] text-slate-400 mt-1">Empty Slot</div></div>`)}></div>`;
+      }
+      return `<div class="eslot filled" data-slot="${s}" data-act="unequip" data-uid="${it.uid}" ${this.tip("g" + it.uid, () => this.gearTip(it, "Click to unequip"))}>${this.gearCell(it, "unequip", "Click to unequip", `data-slot="${s}"`)}</div>`;
+    };
+
+    let cells = `<div class="e-sub-col">${leftCol1.map(cellFor).join("")}</div>`;
+    cells += `<div class="e-sub-col">${leftCol2.map(cellFor).join("")}</div>`;
+    cells += `
+      <div class="eprev">
+        <div class="eprev-pedestal"></div>
+        <div class="eprev-char-wrap">
+          <img alt="Character preview" class="eprev-char" src="${charUrlFor(g.look, "stand1", this.equipAnimFrame)}" />
+        </div>
+        <div class="eprev-aura"></div>
+      </div>
+    `;
+    cells += `<div class="e-sub-col">${rightCol1.map(cellFor).join("")}</div>`;
+    cells += `<div class="e-sub-col">${rightCol2.map(cellFor).join("")}</div>`;
+
+    body.innerHTML = `
+      <div class="equip-head-tabs">
+        <div class="equip-tab on">Equipment</div>
+        <div class="equip-tab">Pet</div>
+      </div>
+      <div class="equip-sub-bar">
+        <span class="equip-title-label">EQUIPMENT</span>
+        <button type="button" class="equip-decor-btn">Decorations &gt;</button>
+      </div>
+      <div class="egrid-container">${cells}</div>
+      <div class="equip-presets-bar">
+        <span class="preset-label">PRESETS</span>
+        <div class="preset-btns">
+          <button type="button" class="preset-btn on">1</button>
+          <button type="button" class="preset-btn">2</button>
+          <button type="button" class="preset-btn">3</button>
+          <button type="button" class="preset-apply-btn">Apply</button>
+        </div>
+      </div>
+      <div class="equip-bottom-actions">
+        <button type="button" class="equip-act-pill lime">TITLE · MEDAL</button>
+        <button type="button" class="equip-act-pill slate">VALUABLE</button>
+        <button type="button" class="equip-act-pill cyan">SYMBOL &gt;</button>
+      </div>
+    `;
+  }
+
+  // ------------------------------------------------------------- inventory
+  renderInv() {
+    const g = this.w.game, tab = this.invTab.cur;
+    const body = this.invWin.querySelector(".x-body") as HTMLElement;
+    if (!body) return;
+    const q = this.invSearch.trim().toLowerCase();
+    const tabs = (["equip", "use", "etc", "setup", "cash", "dec"] as const).map((t) => {
+      const label = t === "equip" ? "Equip" : t === "use" ? "Use" : t === "etc" ? "Etc." : t === "setup" ? "Set-up" : t === "cash" ? "Cash" : "Dec.";
+      return `<button type="button" data-act="invtab" data-v="${t}" class="inv-tab-pill ${t === tab ? "on" : ""}">${label}</button>`;
+    }).join("");
+
+    let grid = "";
+    if (tab === "equip") {
+      let bag = [...g.bag].sort((a, b) => b.rarity - a.rarity || (GEAR.get(b.id)?.req ?? 0) - (GEAR.get(a.id)?.req ?? 0));
+      if (q) bag = bag.filter((it) => (GEAR.get(it.id)?.name ?? "").toLowerCase().includes(q));
+      for (const it of bag) grid += this.gearCell(it, "equip", `Click to equip · right-click to sell (${fmt(npcSellPrice(it))} mesos)`);
+      for (let i = bag.length; i < 64; i++) grid += `<div class="gcell blank"></div>`;
+    } else if (tab === "use") {
+      let ids = Object.keys(ITEMS).map(Number).filter((id) => (g.inv[id] ?? 0) > 0);
+      if (q) ids = ids.filter((id) => (ITEMS[id]?.name ?? "").toLowerCase().includes(q));
+      for (const id of ids) {
+        grid += `<div class="gcell" data-use="${id}" ${this.tip("u" + id, () => renderUseTooltip(id, g.inv[id] ?? 0))}>${icon(itemIcon(id), "ic grab")}<span class="cnt">${g.inv[id]}</span></div>`;
+      }
+      for (let i = ids.length; i < 64; i++) grid += `<div class="gcell blank"></div>`;
+    } else if (tab === "etc") {
+      let entries = Object.entries(g.mats).filter(([_, n]) => n > 0);
+      if (q) entries = entries.filter(([id]) => (MATS.get(+id) ?? "").toLowerCase().includes(q));
+      for (const [id, n] of entries) {
+        grid += `<div class="gcell" ${this.tip("m" + id, () => renderMatTooltip(+id, n))}>${icon(matIcon(+id))}<span class="cnt">${n}</span></div>`;
+      }
+      for (let i = entries.length; i < 64; i++) grid += `<div class="gcell blank"></div>`;
+    } else {
+      for (let i = 0; i < 64; i++) grid += `<div class="gcell blank"></div>`;
+    }
+
+    body.innerHTML = `
+      <div class="inv-header-bar">
+        <div class="inv-tabs">${tabs}</div>
+        <div class="inv-slot-top-badge">SLOT <span class="slot-active">64</span> / 64</div>
+      </div>
+      <div class="inv-sub-bar">
+        <div class="inv-sub-actions">
+          <button type="button" class="inv-pill-btn cyan" data-act="sort"><span class="inv-ico">🔀</span> Sort</button>
+          <button type="button" class="inv-pill-btn slate" data-act="lock"><span class="inv-ico">🔒</span> Lock</button>
+        </div>
+        <button type="button" class="inv-plus-slot" title="Expand Slots">+ SLOT</button>
+      </div>
+      <div class="inv-grid-wrap">
+        <div class="inv-grid">${grid}</div>
+      </div>
+      <div class="inv-finance-row">
+        <div class="inv-meso-badge"><span class="coin-dot gold">🟡</span> ${fmt(g.stats.meso || 164852491)}</div>
+        <div class="inv-points-badge"><span class="coin-dot silver">⚪</span> 5,100</div>
+        <div class="inv-actions-right">
+          <button type="button" class="inv-action-btn slate" data-act="selljunk">Extract/Fuse</button>
+          <button type="button" class="inv-action-btn cyan" data-act="crafttab" data-v="star">Transfer</button>
+          <button type="button" class="inv-action-btn cyan" data-act="crafttab" data-v="star">Enhance</button>
+        </div>
+      </div>
+      <div class="inv-quick-footer">
+        <div class="inv-search-box">
+          <input type="text" placeholder="Enter a search term..." class="inv-search-input" value="${esc(this.invSearch)}" />
+          <span class="inv-search-icon">🔍</span>
+        </div>
+        <div class="inv-footer-buttons">
+          <button type="button" class="inv-foot-btn" data-act="open-equip">⚔ Equip</button>
+          <button type="button" class="inv-foot-btn" data-act="open-shop">🛒 Shop</button>
+          <button type="button" class="inv-foot-btn" data-act="open-storage">📦 Storage Room</button>
+          <button type="button" class="inv-foot-btn" data-act="open-boss">🎁 Boss Rewards</button>
+          <button type="button" class="inv-foot-btn" data-act="open-bag">🎒 Bag</button>
+        </div>
+      </div>
+    `;
+
+    const searchInp = body.querySelector(".inv-search-input") as HTMLInputElement;
+    if (searchInp) {
+      searchInp.addEventListener("input", () => {
+        this.invSearch = searchInp.value;
+        const pos = searchInp.selectionStart ?? this.invSearch.length;
+        this.renderInv();
+        const nextInp = body.querySelector(".inv-search-input") as HTMLInputElement;
+        if (nextInp) { nextInp.focus(); nextInp.setSelectionRange(pos, pos); }
+      });
+    }
+
+    for (const c of body.querySelectorAll<HTMLElement>("[data-use]")) {
+      const id = Number(c.dataset.use);
+      this.w.draggable(c, () => ({ t: "item", id }), undefined, () => g.useAction({ t: "item", id }));
+    }
+  }
+
+  // ------------------------------------------------------------- crafting
+  needsHtml(r: Recipe) {
+    const g = this.w.game;
+    return r.needs.map(([id, n]) => {
+      const have = g.mats[id] ?? 0;
+      return `<span class="need ${have >= n ? "" : "miss"}" ${this.tip("n" + id, () => `<b>${esc(MATS.get(id) ?? "Material")}</b><p class="tip-dim">Owned ${g.mats[id] ?? 0}</p>`)}>${icon(matIcon(id), "ic sm")}${have}/${n}</span>`;
+    }).join("") + `<span class="need ${g.stats.meso >= r.meso ? "" : "miss"}">${fmt(r.meso)} m</span>`;
+  }
+  renderCraft() {
+    const g = this.w.game, tab = this.craftTab.cur;
+    const body = this.craftWin.querySelector(".x-body") as HTMLElement;
+    const tabs = ([["gear", "GEAR"], ["refine", "REFINE & POTIONS"], ["star", "STAR FORCE"], ["cube", "CUBE"]] as const)
+      .map(([t, l]) => `<span data-act="crafttab" data-v="${t}" class="${t === tab ? "on" : ""}">${l}</span>`).join("");
+    let html = "";
+    if (tab === "gear" || tab === "refine") {
+      const list = recipes().filter((r) => (tab === "gear" ? r.kind === "gear" : r.kind !== "gear"))
+        .sort((a, b) => Number(g.stats.level < a.level) - Number(g.stats.level < b.level) || a.level - b.level);
+      html = `<p class="xnote">${tab === "gear" ? "Crafted gear is always Rare or better. Materials drop from monsters and bosses." : "Refine 10 ores into a plate or gem. Brew potions from monster drops."}</p><div class="xlist">`;
+      for (const r of list) {
+        const out = r.out;
+        const ic = out.t === "gear" ? gearIcon(recipeGearId(out.slot, out.tier) ?? 1302000) : out.t === "mat" ? matIcon(out.id) : itemIcon(out.id);
+        const locked = g.stats.level < r.level;
+        const tipKey = "r" + r.id;
+        this.tips.set(tipKey, () => {
+          if (out.t !== "gear") return `<b>${esc(r.name)}</b>`;
+          const b = GEAR.get(recipeGearId(out.slot, out.tier)!)!;
+          return `<b>${esc(b.name)}</b><p class="tip-dim">${SLOT_NAME[out.slot as Slot]} · REQ LEV ${b.req}</p><p>ATT +${b.watk} · STR +${b.str} · DEX +${b.dex} · INT +${b.int ?? 0} · LUK +${b.luk ?? 0} · HP +${b.hp} · DEF +${b.def}</p><p class="tip-dim">Crafting rolls Rare ~ Legendary potential.</p>`;
+        });
+        html += `<div class="xrow ${locked ? "locked" : ""}"><div class="gcell" data-tip="${tipKey}">${icon(ic)}</div><div class="xinfo"><b>${esc(r.name)}</b>${out.t === "gear" ? `<small>${SLOT_NAME[out.slot as Slot]} · Lv ${r.level}</small>` : ""}<div class="needs">${this.needsHtml(r)}</div></div>
+          <button type="button" class="xbtn" data-act="craft" data-v="${r.id}" ${g.canCraft(r) ? "" : "disabled"}>${locked ? `Lv ${r.level}` : "Craft"}</button></div>`;
+      }
+      html += `</div>`;
+    } else {
+      const all: { g: Gear; where: string }[] = [
+        ...SLOTS.map((s) => g.eq[s]).filter((x): x is Gear => !!x).map((x) => ({ g: x, where: "Equipped" })),
+        ...g.bag.map((x) => ({ g: x, where: "Inventory" })),
+      ];
+      if (!this.pick || !all.some((x) => x.g.uid === this.pick)) this.pick = all[0]?.g.uid ?? null;
+      const sel = all.find((x) => x.g.uid === this.pick)?.g;
+      const list = all.map((x) => `<div class="pickc ${x.g.uid === this.pick ? "on" : ""}">${this.gearCell(x.g, "pick", x.where)}</div>`).join("");
+      let panel = "<p class='xnote'>No equipment.</p>";
+      if (sel) {
+        const b = GEAR.get(sel.id)!;
+        if (tab === "star") {
+          const cost = starCost(sel), mat = starMat(sel.star), have = g.mats[mat] ?? 0;
+          const st = gearStats(sel), next = gearStats({ ...sel, star: Math.min(MAX_STAR, sel.star + 1) });
+          const gain = (["watk", "str", "dex", "int", "luk", "hp", "def"] as const).filter((k) => next[k] > st[k]).map((k) => `${{ watk: "ATT", str: "STR", dex: "DEX", int: "INT", luk: "LUK", hp: "HP", def: "DEF" }[k]} +${next[k] - st[k]}`).join(" · ");
+          panel = `<div class="sf-head">${icon(gearIcon(sel.id), "ic lg")}<div><b style="color:${RARITY_INK[sel.rarity]}">${esc(b.name)}</b><div class="stars big">${"★".repeat(sel.star)}<span class="dim">${"★".repeat(MAX_STAR - sel.star)}</span></div></div></div>
+            ${sel.star >= MAX_STAR ? `<p class="xnote">Maximum stars reached.</p>` : `<div class="sf-grid"><span>Success</span><b>${Math.round(starRate(sel.star) * 100)}%</b><span>Failure</span><b>${100 - Math.round(starRate(sel.star) * 100)}% (stars kept)</b>
+            <span>Next star</span><b>${gain || "—"}</b><span>Cost</span><b class="${g.stats.meso >= cost ? "" : "miss"}">${fmt(cost)} mesos</b>
+            <span>Material</span><b class="${have >= 1 ? "" : "miss"}">${icon(matIcon(mat), "ic sm")} ${esc(MATS.get(mat) ?? "")} ${have}/1</b></div>
+            <button type="button" class="xbtn big" data-act="star">Enhance ★${sel.star + 1}</button>`}`;
+        } else {
+          const cost = cubeCost(sel), have = g.mats[4000010] ?? 0;
+          panel = `<div class="sf-head">${icon(gearIcon(sel.id), "ic lg")}<div><b style="color:${RARITY_INK[sel.rarity]}">${esc(b.name)}</b><div class="tip-dim">${RARITY[sel.rarity]} potential</div></div></div>
+            <div class="pot-box" style="border-color:${RARITY_COLOR[sel.rarity]}">${sel.pot.length ? sel.pot.map((p) => `<p>${POT_LABEL[p.stat]}: +${p.pct}%</p>`).join("") : "<p class='tip-dim'>No potential yet</p>"}</div>
+            <div class="sf-grid"><span>Tier-up chance</span><b>${[30, 10, 4, 1.5, 0][sel.rarity]}%</b><span>Cost</span><b class="${g.stats.meso >= cost ? "" : "miss"}">${fmt(cost)} mesos</b>
+            <span>Material</span><b class="${have >= 5 ? "" : "miss"}">${icon(matIcon(4000010), "ic sm")} Slime Bubble ${have}/5</b></div>
+            <button type="button" class="xbtn big" data-act="cube">Use Cube</button>`;
+        }
+      }
+      html = `<div class="sf"><div class="pick-list">${list}</div><div class="sf-panel">${panel}<div class="craft-result">${this.lastResult}</div></div></div>`;
+    }
+    body.innerHTML = `<div class="xtabs">${tabs}</div>${html}<div class="inv-foot"><span class="tip-dim">${tab === "gear" || tab === "refine" ? "" : "Pick a piece on the left"}</span><span class="meso">${fmt(g.stats.meso)}</span></div>`;
+  }
+
+  // ------------------------------------------------------------- auction house
+  sellGoods(key: string): Goods | null {
+    const g = this.w.game;
+    const [t, id] = key.split(":");
+    if (t === "g") { const it = g.bag.find((x) => x.uid === id); return it ? { t: "gear", gear: it } : null; }
+    if (t === "m") { const n = Math.min(100, g.mats[+id] ?? 0); return n > 0 ? { t: "mat", id: +id, n } : null; }
+    const n = Math.min(100, g.inv[+id] ?? 0); return n > 0 ? { t: "use", id: +id, n } : null;
+  }
+  goodsIcon(x: Goods) { return x.t === "gear" ? gearIcon(x.gear.id) : x.t === "mat" ? matIcon(x.id) : itemIcon(x.id); }
+  goodsCell(x: Goods, key: string) {
+    if (x.t === "gear") return this.gearCell(x.gear, "", "");
+    if (x.t === "use") {
+      return `<div class="gcell" ${this.tip(key, () => renderUseTooltip(x.id, x.n, `Market value ≈ ${fmt(goodsValue(x))} mesos`))}>${icon(this.goodsIcon(x))}<span class="cnt">${x.n}</span></div>`;
+    }
+    return `<div class="gcell" ${this.tip(key, () => renderMatTooltip(x.id, x.n, `Market value ≈ ${fmt(goodsValue(x))} mesos`))}>${icon(this.goodsIcon(x))}<span class="cnt">${x.n}</span></div>`;
+  }
+  goodsLabel(x: Goods) {
+    const c = x.t === "gear" ? RARITY_INK[x.gear.rarity] : "#333";
+    return `<b style="color:${c}">${esc(goodsName(x))}${x.t === "gear" && x.gear.star ? ` ★${x.gear.star}` : ""}</b>`;
+  }
+  renderAh() {
+    const g = this.w.game, ah = g.ah, tab = this.ahTab.cur;
+    const body = this.ahWin.querySelector(".x-body") as HTMLElement;
+    const sold = ah.mine.filter((m) => m.sold).length;
+    const tabs = ([["browse", "BROWSE"], ["sell", "SELL"], ["mine", `MY LISTINGS${sold ? ` (${sold})` : ""}`]] as const)
+      .map(([t, l]) => `<span data-act="ahtab" data-v="${t}" class="${t === tab ? "on" : ""}">${l}</span>`).join("");
+    let html = "";
+    if (tab === "browse") {
+      if (!ah.listings.length) ah.refresh(Date.now());
+      const f = this.ahFilter;
+      const chips = ([["all", "All"], ["gear", "Equipment"], ["mat", "Materials"], ["use", "Consumables"]] as const)
+        .map(([k, l]) => `<span data-act="ahfilter" data-v="${k}" class="chip ${k === f ? "on" : ""}">${l}</span>`).join("");
+      const rows = ah.listings.filter((l) => f === "all" || l.goods.t === f).map((l) => {
+        const v = goodsValue(l.goods), deal = l.price / v;
+        const tag = deal < 0.9 ? `<span class="deal good">${Math.round((1 - deal) * 100)}% below market</span>` : deal > 1.2 ? `<span class="deal bad">${Math.round((deal - 1) * 100)}% above</span>` : `<span class="deal">fair price</span>`;
+        const req = l.goods.t === "gear" ? GEAR.get(l.goods.gear.id)?.req ?? 0 : 0;
+        return `<div class="ah-row">${this.goodsCell(l.goods, "ah" + l.lid)}<div class="xinfo">${this.goodsLabel(l.goods)}<small>${esc(l.seller)}${req ? ` · Lv ${req}` : ""} · ${tag}</small></div>
+          <div class="ah-price">${fmt(l.price)}<small>mesos</small></div><button type="button" class="xbtn" data-act="buy" data-v="${l.lid}" ${g.stats.meso >= l.price ? "" : "disabled"}>Buy</button></div>`;
+      }).join("");
+      html = `<div class="ah-bar">${chips}<button type="button" class="xbtn" data-act="ahrefresh" title="Fetch new listings (100 mesos)">Refresh · 100</button></div><div class="xlist ah">${rows || "<p class='xnote'>No listings.</p>"}</div>`;
+    } else if (tab === "sell") {
+      const rows: string[] = [];
+      const row = (key: string, x: Goods) => {
+        const v = goodsValue(x);
+        rows.push(`<div class="ah-row">${this.goodsCell(x, "s" + key)}<div class="xinfo">${this.goodsLabel(x)}<small>Market ≈ ${fmt(v)} · NPC ${x.t === "gear" ? fmt(npcSellPrice(x.gear)) : "—"}</small></div>
+          <input type="number" min="1" step="1" value="${v}" aria-label="Price in mesos"><button type="button" class="xbtn" data-act="list" data-v="${key}">List</button></div>`);
+      };
+      for (const it of [...g.bag].sort((a, b) => gearValue(b) - gearValue(a))) row(`g:${it.uid}`, { t: "gear", gear: it });
+      for (const [id, n] of Object.entries(g.mats)) if (n > 0) row(`m:${id}`, { t: "mat", id: +id, n: Math.min(100, n) });
+      for (const [id, n] of Object.entries(g.inv)) if (n > 0) row(`u:${id}`, { t: "use", id: +id, n: Math.min(100, n) });
+      html = `<p class="xnote">Price below market to sell fast. Listing fee 1% · sales tax ${AH_TAX * 100}%. Buyers shop while you play.</p><div class="xlist ah tall">${rows.join("") || "<p class='xnote'>Nothing to sell.</p>"}</div>`;
+    } else {
+      const rows = ah.mine.map((m) => `<div class="ah-row">${this.goodsCell(m.goods, "my" + m.lid)}<div class="xinfo">${this.goodsLabel(m.goods)}<small>${m.sold ? `<span class="deal good">SOLD · you receive ${fmt(m.price * (1 - AH_TAX))}</span>` : `Waiting for a buyer · listed ${dur((Date.now() - m.listedAt) / 1000)} ago`}</small></div>
+        <div class="ah-price">${fmt(m.price)}<small>mesos</small></div><button type="button" class="xbtn ${m.sold ? "gold" : ""}" data-act="collect" data-v="${m.lid}">${m.sold ? "Collect" : "Cancel"}</button></div>`).join("");
+      html = `<div class="xlist ah tall">${rows || "<p class='xnote'>You have no listings. Sell items from the SELL tab.</p>"}</div>`;
+    }
+    body.innerHTML = `<div class="xtabs">${tabs}</div>${html}<div class="inv-foot"><span class="tip-dim">${ah.listings.length} listings on the market</span><span class="meso">${fmt(g.stats.meso)}</span></div>`;
+  }
+
+  // ------------------------------------------------------------- offline rewards
+  showOffline(r: { seconds: number; kills: number; exp: number; meso: number; mats: Record<number, number>; gear: Gear[] }) {
+    this.offline?.remove();
+    const box = el("div", "offline", document.body);
+    this.offline = box;
+    const mats = Object.entries(r.mats).filter(([, n]) => n > 0).map(([id, n]) => `<div class="gcell">${icon(matIcon(+id))}<span class="cnt">${n}</span></div>`).join("");
+    const gear = r.gear.map((g) => `<div class="gcell r${g.rarity}">${icon(gearIcon(g.id))}</div>`).join("");
+    box.innerHTML = `<div class="offline-card win-css"><div class="win-title">WELCOME BACK</div>
+      <p class="off-lead">Your character kept hunting for <b>${dur(r.seconds)}</b> while you were away.</p>
+      <div class="off-grid"><span>Monsters defeated</span><b>${fmt(r.kills)}</b><span>EXP</span><b>${fmt(r.exp)}</b><span>Mesos</span><b>${fmt(r.meso)}</b></div>
+      <div class="off-items">${mats}${gear}</div>
+      <div class="off-btns"><button type="button" class="xbtn big gold" data-m="1">Claim</button></div>
+      <p class="tip-dim off-note">Offline hunting runs at 60% of your recent Auto Battle pace, up to 12 hours.</p></div>`;
+    box.querySelector("button")!.addEventListener("click", () => { this.w.game.claimOffline(r, 1); box.remove(); this.offline = null; this.sig = {}; });
+  }
+
+  // ------------------------------------------------------------- per frame
+  renderHud() {
+    const g = this.w.game, s = g.stage, need = g.stageNeed;
+    const ready = g.bossReady();
+    const sig = `${s.n}|${s.kills}|${ready}|${!!g.boss}|${g.bossLoading}|${g.combatPower()}|${g.auto.boss}`;
+    if (sig !== this.sig.hud) {
+      this.sig.hud = sig;
+      const bossName = (g.mobData.get(g.bossFor())?.name ?? "Stage Boss").trim();
+      this.stageHud.innerHTML = `<div class="st-top"><span class="st-n">STAGE ${s.n}</span><span class="st-cp">CP ${fmt(g.combatPower())}</span></div>
+        <div class="st-bar"><div class="st-fill" style="width:${Math.min(100, (s.kills / need) * 100)}%"></div><span>${g.boss ? "BOSS BATTLE" : `${Math.min(s.kills, need)} / ${need}`}</span></div>
+        <div class="st-actions">
+          <button type="button" class="auto-boss-toggle ${g.auto.boss ? "on" : ""}" title="Toggle Auto Boss Challenge"><span class="auto-dot"></span>AUTO BOSS: ${g.auto.boss ? "ON" : "OFF"}</button>
+          ${ready ? `<button type="button" class="boss-go" ${g.bossLoading ? "disabled" : ""}>${g.bossLoading ? "SUMMONING…" : `BOSS · ${esc(bossName)}`}</button>` : ""}
+        </div>`;
+    }
+    const m = g.boss;
+    if (m) {
+      const fill = this.bossBar.querySelector<HTMLElement>(".boss-fill");
+      if (fill) fill.style.width = `${Math.max(0, (m.hp / m.maxHp) * 100)}%`;
+      const num = this.bossBar.querySelector<HTMLElement>(".boss-num");
+      if (num) num.textContent = `${fmt(Math.max(0, m.hp))} / ${fmt(m.maxHp)}`;
+      const tm = this.bossBar.querySelector<HTMLElement>(".boss-time");
+      if (tm) { const t = Math.max(0, Math.ceil(g.bossTimer)); tm.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; tm.classList.toggle("warn", t <= 20); }
+    }
+  }
+
+  update() {
+    const g = this.w.game;
+    this.renderHud();
+    const vis = (e: HTMLElement) => !e.classList.contains("hidden");
+    const run = (k: string, e: HTMLElement, sig: () => string, f: () => void) => {
+      if (!vis(e)) return;
+      const s = sig();
+      if (s !== this.sig[k]) { this.sig[k] = s; this.tips.clear(); f(); }
+    };
+    // Don't re-render while the user is typing a price.
+    const typing = document.activeElement?.closest("#ah-win") && document.activeElement?.tagName === "INPUT";
+    run("eq", this.equipWin, () => JSON.stringify([g.eq, g.stats.level, g.look, g.stats.maxHp, g.buffs["1101006"] ? 1 : 0]), () => this.renderEquip());
+    run("inv", this.invWin, () => JSON.stringify([this.invTab.cur, g.bag.length, g.bag.map((b) => b.uid + b.star + b.rarity).join(), g.inv, g.mats, g.stats.meso, g.stats.level]), () => this.renderInv());
+    run("craft", this.craftWin, () => JSON.stringify([this.craftTab.cur, this.pick, this.lastResult, g.mats, g.stats.meso, g.stats.level, g.bag.length, g.eq, g.bag.map((b) => b.uid + b.star + b.rarity).join()]), () => this.renderCraft());
+    if (!typing) run("ah", this.ahWin, () => JSON.stringify([this.ahTab.cur, this.ahFilter, g.ah.listings.length, g.ah.listings[0]?.lid, g.ah.mine.map((m) => m.lid + m.sold), g.stats.meso, this.ahTab.cur === "sell" ? [g.bag.length, g.mats, g.inv] : 0, this.ahTab.cur === "mine" ? Math.floor(Date.now() / 30000) : 0]), () => this.renderAh());
+
+    // Character preview idle animation inside equipment window
+    if (vis(this.equipWin)) {
+      const f = Math.floor(Date.now() / 500) % 4;
+      if (f !== this.equipAnimFrame) {
+        this.equipAnimFrame = f;
+        const img = this.equipWin.querySelector<HTMLImageElement>(".eprev-char");
+        if (img) {
+          const url = charUrlFor(g.look, "stand1", f);
+          if (img.src !== url) img.src = url;
+        }
+      }
+    }
+  }
+}

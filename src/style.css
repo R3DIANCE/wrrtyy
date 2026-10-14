@@ -1,0 +1,2239 @@
+@import "tailwindcss";
+
+:root {
+  /* Surfaces */
+  --chrome: #141923;            /* bottom HUD bar */
+  --chrome-2: #1b2230;          /* window title bar */
+  --panel-dark: #151a24;        /* solid dark MapleStory panels */
+  --panel-dark-2: #10141d;     /* darker inner panels */
+  --panel-light: #ffffff;        /* light white card panels */
+  --panel-light-2: #edf1f5;     /* light inner wells */
+  --bg-overlay: rgba(12, 16, 24, 0.92);
+
+  /* Accents */
+  --title-lime: #c2f829;
+  --title-lime-dim: #9fd01e;
+  --accent-cyan: #12b8cd;
+  --accent-cyan-dim: #0e97a8;
+  --hp-rose: #ea3875;
+  --hp-rose-2: #fa588f;
+  --mp-cyan: #13b2dc;
+  --mp-cyan-2: #34d4f7;
+  --exp-lime: #e2ef17;
+  --exp-lime-2: #f2ff26;
+
+  /* Text */
+  --text-on-dark: #ffffff;
+  --text-on-light: #2d3748;
+  --muted: #a4b3c6;
+  --muted-2: #7b8794;
+
+  /* Borders / states */
+  --border: #283447;
+  --border-2: #1c2432;
+  --good: #22c55e;
+  --warn: #f59e0b;
+  --bad: #ef4444;
+  --up: #4ade80;
+  --down: #ff6b6b;
+
+  /* Radii */
+  --r-window: 10px;
+  --r-slot: 4px;
+  --r-pill: 9999px;
+
+  /* MapleStory Character Stat UI Palette (Character_Stat_UI.png) */
+  --ms-window-border: #3a4454;
+  --ms-title-bg: #4f5e77;
+  --ms-window-bg: #d2d8e1;
+  --ms-panel-bg: #f1f3f6;
+  --ms-panel-border: #9ca8b8;
+
+  /* Typography */
+  --ms-text-primary: #22262e;
+  --ms-text-value: #11141a;
+  --ms-text-muted: #6b7688;
+  --ms-text-light: #ffffff;
+
+  /* Stat Modifiers */
+  --ms-accent-green: #27ae60;
+  --ms-accent-orange: #f39c12;
+  --ms-accent-red: #d63031;
+  --ms-accent-blue: #2980b9;
+
+  /* Authentic MapleStory Animated Cursors (bundled via public/cursors/) */
+  --ms-cursor-default: url("../public/cursors/point_click.gif") 0 0, url("../public/cursors/point.cur") 0 0, pointer;
+  --ms-cursor-pointer: url("../public/cursors/point_click.gif") 0 0, url("../public/cursors/point.cur") 0 0, pointer;
+  --ms-cursor-grab: url("../public/cursors/grab.gif") 5 2, url("../public/cursors/grab.cur") 5 2, grab;
+  --ms-cursor-busy: url("../public/cursors/point_dice.gif") 12 12, wait;
+  --ms-cursor-help: url("../public/cursors/magnifying_glass_click.gif") 4 6, url("../public/cursors/magnifying_glass.cur") 4 6, help;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  cursor: inherit;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+}
+
+input, textarea, [contenteditable="true"], .chat-field, input * {
+  cursor: text !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #000000; color: #fff;
+  margin: 0; padding: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-size: 12px;
+  cursor: var(--ms-cursor-default) !important;
+}
+
+#game {
+  position: fixed; top: 0; left: 0; width: 100vw !important; height: 100vh !important; display: block;
+  margin: 0; padding: 0; border: 0; outline: 0;
+  transform: translateZ(0);
+  cursor: var(--ms-cursor-default) !important;
+  z-index: 0;
+}
+
+/* Force MapleStory pointer on all clickable / interactive elements and override browser defaults */
+button, a, select, [role="button"],
+.ms-menu-btn, .spr-btn, .xbtn, .eslot, .gcell, .chat-tab, .mini-btn, .mini-util-btn,
+.quest-btn, .auto-btn, .chat-ctrl-btn, .chat-to-btn, .chat-act-btn,
+.inv-tab-pill, .inv-pill-btn, .inv-action-btn, .inv-foot-btn,
+.equip-tab, .equip-decor-btn, .preset-btn, .preset-apply-btn, .equip-act-pill,
+.skill-tab, .item-tabs span, .xtabs span, .chip,
+[data-act], [data-item-id], [data-use],
+.cursor-pointer, [class*="cursor-pointer"],
+[tabindex]:not([tabindex="-1"]) {
+  cursor: var(--ms-cursor-pointer) !important;
+}
+
+.grab, [class*="cursor-grab"] {
+  cursor: var(--ms-cursor-grab) !important;
+}
+
+.cursor-wait, [class*="cursor-wait"], [disabled], button:disabled {
+  cursor: var(--ms-cursor-busy) !important;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- Login overlay ---------- */
+.overlay {
+  position: fixed; inset: 0; display: grid; place-items: center; z-index: 30;
+  background: radial-gradient(ellipse at 50% 30%, #1e2438 0%, #14182a 45%, #0c101e 100%);
+}
+
+.login {
+  width: min(460px, calc(100vw - 32px));
+  background: var(--panel-dark);
+  color: var(--text-on-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--r-window);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.06) inset, 0 20px 60px rgba(0,0,0,.55);
+  padding: 24px 26px 18px;
+  font-family: inherit;
+}
+
+.login-head { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; }
+.login-head img { image-rendering: pixelated; border-radius: 8px; }
+
+.login h1 {
+  font-size: 22px; font-weight: 700; color: var(--title-lime);
+  text-shadow: 0 1px 0 rgba(0,0,0,.55); letter-spacing: .3px;
+}
+.login p { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+.field { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 12px; }
+.field input, .field select {
+  display: block; width: 100%; margin-top: 5px; padding: 9px 11px;
+  font: 600 13px "Segoe UI", system-ui, sans-serif;
+  border: 1px solid var(--border); border-radius: var(--r-slot);
+  background: var(--panel-dark-2); color: var(--text-on-dark);
+  outline: none; transition: border-color .15s;
+}
+.field input:focus, .field select:focus { border-color: var(--accent-cyan); }
+.field select { cursor: pointer; }
+
+.keys {
+  list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 14px;
+  font-size: 11px; color: var(--muted); margin-bottom: 16px;
+}
+.keys li { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.keys b { flex: 0 0 78px; color: var(--text-on-dark); white-space: nowrap; }
+.keys span { flex: 1; min-width: 0; }
+
+#start-btn {
+  width: 100%; padding: 11px; font: 700 14px "Segoe UI", system-ui, sans-serif;
+  color: #082c30; cursor: pointer; border-radius: var(--r-slot);
+  border: 1px solid var(--accent-cyan-dim);
+  background: linear-gradient(180deg, #3ec5d8, var(--accent-cyan));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+  transition: filter .15s;
+}
+#start-btn:hover:not(:disabled) { filter: brightness(1.1); }
+#start-btn:disabled { opacity: .55; cursor: default; filter: saturate(.6); }
+
+.fine { font-size: 10px !important; margin-top: 10px !important; text-align: center; color: var(--muted-2) !important; }
+.err-detail { color: var(--bad) !important; }
+
+.loading {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 25;
+  font: 600 13px "Segoe UI", system-ui, sans-serif; color: var(--text-on-dark);
+  background: var(--bg-overlay); padding: 10px 18px; border-radius: var(--r-slot);
+  border: 1px solid var(--border);
+}
+
+
+/* ============================================================================
+   HUD — bottom bar, gauges, quick slots, minimap, chat, buffs
+============================================================================ */
+.hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; font-size: 12px; }
+.spr { position: absolute; background-repeat: no-repeat; image-rendering: pixelated; }
+.nopoint { pointer-events: none; }/* ---------- Bottom dock (MapleSEA NEXT 2025 Floating HUD) ---------- */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 12px;
+  height: 44px;
+  display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 0 10px 2px 10px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  pointer-events: none; user-select: none; z-index: 12;
+}
+.dock-left, .dock-center, .dock-right { pointer-events: auto; }
+.dock-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.dock-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+/* Left side of dock: Player Level & IGN (Capsule design matching reference) */
+.dock-left {
+  display: flex; align-items: flex-end; gap: 8px; min-width: 0; margin-bottom: 2px;
+}
+.ms-player-bar {
+  display: inline-flex; align-items: center;
+  height: 26px;
+  background: rgba(58, 68, 84, 0.85);
+  border: 1px solid rgba(156, 168, 184, 0.4);
+  border-radius: 4px;
+  padding: 0 10px;
+  gap: 8px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  pointer-events: auto; user-select: none;
+}
+.ms-player-lv {
+  display: flex; align-items: baseline; gap: 3px;
+}
+.ms-player-ign {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 12.5px; font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 1px 2px #000, 0 0 2px #000;
+  letter-spacing: 0.2px;
+}
+
+/* Center of dock: 8 Square Menu Buttons + Stacked HP & MP Bars */
+.dock-center {
+  display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 0; pointer-events: auto;
+}
+
+/* 8 Square Menu Buttons (situated immediately left of HP/MP) */
+.dock-menu {
+  display: flex; align-items: center; gap: 3px;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0; padding: 0;
+  box-shadow: none !important;
+  height: 38px;
+}
+.ms-menu-btn {
+  position: relative; width: 27px; height: 27px;
+  background: rgba(58, 68, 84, 0.78);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  border: 1px solid rgba(156, 168, 184, 0.35);
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  color: #f1f3f6; cursor: pointer; padding: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.ms-menu-btn:hover {
+  background: rgba(79, 94, 119, 0.92);
+  border-color: #9ca8b8;
+  color: #ffffff;
+}
+.ms-menu-btn:active { transform: translateY(1px); }
+.menu-svg {
+  width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8;
+}
+.ms-badge-dot {
+  position: absolute; right: 2px; top: 2px; width: 5px; height: 5px;
+  border-radius: 50%; background: #ff9f1c; border: 1px solid #000;
+  box-shadow: 0 0 4px #ff9f1c; animation: badgebounce 1.2s infinite alternate;
+}
+
+/* Stacked HP and MP Bars (Exact 1:1 match to reference) */
+.ms-hud-center {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  pointer-events: auto;
+}
+.ms-bar-row {
+  display: flex;
+  align-items: center;
+  width: 280px;
+  height: 20px;
+}
+.ms-bar-track {
+  position: relative;
+  width: 100%;
+  height: 20px;
+  background: #1e2733;
+  border: 1.5px solid #10151c;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.ms-bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  transition: width 0.2s cubic-bezier(0.2, 0.8, 0.4, 1);
+}
+.ms-bar-fill.hp {
+  background: linear-gradient(180deg, #ff4d6d 0%, #e63956 50%, #c9184a 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.ms-bar-fill.mp {
+  background: linear-gradient(180deg, #38bdf8 0%, #0ea5e9 50%, #0284c7 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.ms-bar-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 1px 2px #000000, 0 0 2px #000000;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+  z-index: 2;
+  user-select: none;
+}
+
+/* Right side of dock: Maple World Widget + Keyboard Quick Slots */
+.dock-right {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0;
+}
+.ms-maple-world-widget {
+  display: flex; align-items: center; gap: 3px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 10px; font-weight: 700; color: #94a3b8;
+  margin-bottom: 2px;
+  text-shadow: 0 1px 2px #000;
+}
+.ms-maple-world-widget .mw-label {
+  color: #e2ef17; letter-spacing: 0.3px;
+}
+.ms-maple-world-widget .mw-count {
+  color: #ffffff;
+}
+.dock-quick-wrap { display: flex; align-items: center; }
+.quick-keyboard {
+  display: flex; align-items: center; gap: 4px;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0; padding: 0;
+  box-shadow: none !important;
+}
+.quick-cluster { display: grid; gap: 2px; }
+.cluster-nav {
+  grid-template-columns: repeat(4, 27px);
+  grid-template-rows: repeat(2, 27px);
+}
+.cluster-main {
+  grid-template-columns: repeat(12, 27px);
+  grid-template-rows: repeat(2, 27px);
+}
+.slot {
+  position: relative; width: 27px; height: 27px;
+  background: rgba(58, 68, 84, 0.70);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  border: 1px solid rgba(156, 168, 184, 0.28);
+  border-radius: 3px; cursor: default; user-select: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.1s, background-color 0.1s;
+}
+.slot:hover { border-color: #9ca8b8; background: rgba(79, 94, 119, 0.88); }
+.slot.filled { background: rgba(58, 68, 84, 0.82); border-color: rgba(156, 168, 184, 0.42); }
+.slot-icon {
+  position: absolute; inset: 2px;
+  background-position: center; background-repeat: no-repeat; background-size: contain;
+  image-rendering: pixelated; z-index: 2;
+}
+.slot.off .slot-icon { filter: grayscale(0.8) opacity(0.5); }
+.slot-key {
+  position: absolute; left: 2px; top: 1px;
+  font: 700 8px/9px "Segoe UI", system-ui, sans-serif;
+  color: #d2d8e1; text-shadow: 0 1px 2px #000; pointer-events: none; z-index: 3;
+}
+.slot-badge {
+  position: absolute; left: 1px; right: 1px; bottom: 1px;
+  font: 800 6px/8px "Segoe UI", system-ui, sans-serif;
+  border-radius: 2px; text-align: center; text-transform: uppercase;
+  letter-spacing: -0.2px; pointer-events: none; z-index: 2;
+}
+.slot.filled .slot-badge { display: none; }
+.badge-green { background: #15803d; color: #bbf7d0; }
+.badge-blue { background: #0369a1; color: #bae6fd; }
+.badge-orange { background: #c2410c; color: #fed7aa; }
+.badge-yellow { background: #a16207; color: #fef08a; }
+.slot-count {
+  position: absolute; right: 2px; bottom: 1px;
+  font: 700 8.5px/10px "Segoe UI", system-ui, sans-serif;
+  color: #ffffff; text-shadow: 0 1px 2px #000; pointer-events: none; z-index: 4;
+}
+
+/* Full-width Screen Bottom EXP Bar (12px authentic bar with text inside) */
+.ms-screen-exp-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 12px;
+  background: #1a222d;
+  border-top: 1px solid var(--ms-window-border, #3a4454);
+  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  pointer-events: none;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.ms-screen-exp-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #bef264 0%, #eab308 50%, #84cc16 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  transition: width 0.25s cubic-bezier(0.2, 0.8, 0.4, 1);
+  pointer-events: none;
+}
+.ms-exp-readout, .ms-screen-exp-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 1px 2px #000000, 0 0 2px #000000;
+  letter-spacing: 0.2px;
+  line-height: 12px;
+  pointer-events: none;
+  user-select: none;
+  text-align: center;
+  z-index: 2;
+}
+
+/* ---------- 3) Chat Box (Smart Collapsed/Idle & Expanded) ---------- */
+.chat {
+  position: absolute; left: 8px; bottom: 74px; width: 446px;
+  border-radius: 4px; overflow: hidden;
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  pointer-events: auto;
+}
+.chat.expanded {
+  background: #141a24;
+  border: 1px solid #283344;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.65);
+}
+.chat.expanded .chat-header,
+.chat.expanded .chat-input-row {
+  display: flex !important;
+}
+
+/* Idle state: completely transparent background, no borders, no header or input bar */
+.chat.idle {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  pointer-events: none;
+}
+.chat.idle .chat-header,
+.chat.idle .chat-input-row {
+  display: none !important;
+}
+.chat.idle .chat-log {
+  pointer-events: none;
+  background: transparent !important;
+}
+.chat.idle .chat-line {
+  text-shadow: 0 1px 2px #000, 0 0 3px #000, 1px 1px 2px #000;
+  margin-bottom: 2px;
+}
+.chat-line.fade-out {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.chat.minimized .chat-log, .chat.minimized .chat-input-row { display: none; }
+.chat-header {
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 12, 18, 0.65); padding: 0 4px;
+}
+.chat-tabs { display: flex; align-items: center; gap: 2px; }
+.chat-tab {
+  padding: 4px 8px; background: transparent; border: 0;
+  font: 600 11px "Segoe UI", system-ui, sans-serif; color: #94a3b8;
+  cursor: pointer; transition: all 0.1s;
+}
+.chat-tab:hover { color: #ffffff; }
+.chat-tab.active {
+  background: rgba(36, 46, 62, 0.9); color: #ffffff; font-weight: 700;
+  border-radius: 3px 3px 0 0; box-shadow: inset 0 1.5px 0 #38bdf8;
+}
+.chat-ctrls { display: flex; align-items: center; gap: 2px; }
+.chat-ctrl-btn {
+  width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; color: #94a3b8; cursor: pointer; border-radius: 3px;
+}
+.chat-ctrl-btn:hover { background: rgba(255, 255, 255, 0.1); color: #ffffff; }
+.chat-log {
+  height: 104px; overflow-y: auto; padding: 4px 8px;
+  font: 11px/16px "Segoe UI", system-ui, sans-serif; scrollbar-width: thin;
+}
+.chat-line { color: #e2e8f0; text-shadow: 0 1px 1px rgba(0,0,0,.6); word-break: break-word; }
+.chat-time { color: #64748b; font-size: 10px; margin-right: 4px; font-variant-numeric: tabular-nums; }
+.chat-line.say .chat-name { color: #ffffff; font-weight: 700; }
+.chat-line.notice { color: #9ce4ff; }
+.chat-line.exp { color: #ffe98a; }
+.chat-line.meso { color: #7dff6b; }
+.chat-line.level { color: var(--title-lime); }
+.chat-input-row {
+  display: flex; align-items: center; gap: 4px; padding: 4px 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1); background: rgba(10, 14, 20, 0.85);
+}
+.chat-to-btn {
+  display: flex; align-items: center; gap: 4px; padding: 3px 6px;
+  background: rgba(30, 38, 52, 0.8); border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px; font: 600 10px "Segoe UI", sans-serif; color: #cbd5e1;
+  cursor: pointer; white-space: nowrap;
+}
+.chat-field {
+  flex: 1; height: 22px; background: rgba(6, 9, 14, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 3px;
+  color: #ffffff; padding: 0 6px; font: 11px "Segoe UI", sans-serif; outline: none;
+}
+.chat-field::placeholder { color: rgba(255, 255, 255, 0.4); }
+.chat-act-btns { display: flex; align-items: center; gap: 2px; }
+.chat-act-btn {
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  background: rgba(30, 38, 52, 0.6); border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px; color: #94a3b8; cursor: pointer;
+}
+.chat-act-btn:hover { background: rgba(45, 58, 78, 0.9); color: #ffffff; }
+
+/* ---------- 1) Mini Map (Top-Left) ---------- */
+.minimap {
+  position: absolute; left: 8px; top: 8px; width: 228px;
+  background: rgba(16, 22, 32, 0.94); border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px; overflow: hidden; backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55); pointer-events: auto;
+}
+.minimap.compact .mini-viewframe { display: none; }
+.minimap.minimized .mini-header, .minimap.minimized .mini-viewframe { display: none; }
+.mini-top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 3px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 12, 18, 0.65);
+}
+.mini-zoom-group { display: flex; gap: 2px; }
+.mini-btn {
+  width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+  background: rgba(30, 38, 50, 0.8); border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px; color: #cbd5e1; font: 700 12px/1 "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+.mini-btn:hover { background: rgba(48, 62, 82, 0.9); color: #fff; }
+.mini-util-group { display: flex; gap: 3px; }
+.mini-util-btn {
+  width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; color: #94a3b8; cursor: pointer; border-radius: 3px;
+}
+.mini-util-btn:hover { color: #ffffff; background: rgba(255, 255, 255, 0.1); }
+.mini-header {
+  display: flex; align-items: center; gap: 8px; padding: 4px 8px;
+}
+.mini-badge {
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.mini-titles { display: flex; flex-direction: column; min-width: 0; }
+.mini-street {
+  font: 700 12px/14px "Segoe UI", system-ui, sans-serif; color: #ffffff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mini-name {
+  font: 500 10.5px/12px "Segoe UI", system-ui, sans-serif; color: #94a3b8;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mini-viewframe {
+  margin: 2px 6px 4px; border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px; overflow: hidden; background: #000000; position: relative;
+}
+.mini-body { position: relative; margin: 0 auto; }
+.mini-img { position: absolute; inset: 0; background-size: 100% 100%; image-rendering: pixelated; }
+.mini-dot {
+  position: absolute; left: -3.5px; top: -3.5px; width: 7px; height: 7px;
+  border-radius: 50%; background: #facc15; border: 1.5px solid #78350f;
+  box-shadow: 0 0 8px #facc15; z-index: 5;
+}
+.mini-portal {
+  position: absolute; width: 6px; height: 6px; margin: -7px 0 0 -3px;
+  border-radius: 50%; background: #38bdf8; border: 1px solid #0369a1;
+  box-shadow: 0 0 6px #38bdf8; z-index: 4;
+}
+.mini-fold-tab {
+  width: 32px; height: 10px; margin: 0 auto;
+  background: rgba(16, 22, 32, 0.94); border: 1px solid rgba(255, 255, 255, 0.18);
+  border-top: 0; border-radius: 0 0 4px 4px;
+  display: flex; align-items: center; justify-content: center;
+  color: #94a3b8; cursor: pointer; transition: color 0.15s;
+}
+.mini-fold-tab:hover { color: #ffffff; }
+
+/* ---------- 2) Quest Notifier (Left Edge Vertical Capsule) ---------- */
+.quest-notifier {
+  position: absolute; left: 8px; top: 196px; width: 38px;
+  background: #141a24;
+  border: 1.5px solid #283344; border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55); padding: 5px 3px;
+  display: flex; flex-direction: column; gap: 5px; align-items: center;
+  pointer-events: auto; z-index: 11;
+}
+.quest-btn {
+  position: relative; width: 28px; height: 28px;
+  background: transparent; border: 0; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: transform 0.12s, filter 0.12s; padding: 0;
+}
+.quest-btn:hover { transform: scale(1.12); filter: brightness(1.18); }
+.quest-btn:active { transform: scale(0.95); }
+.quest-pulse {
+  position: absolute; right: 0; top: 0; width: 6px; height: 6px;
+  border-radius: 50%; background: #ef4444; border: 1px solid #fff;
+  box-shadow: 0 0 6px #ef4444; animation: badgebounce 1.2s infinite alternate;
+}
+
+.nametag {
+  position: absolute; left: 0; top: 0; padding: 1px 5px 2px;
+  background: #10141d; border-radius: var(--r-slot);
+  font: 11px "Segoe UI", system-ui, sans-serif; color: #fff;
+  white-space: nowrap; border: 1px solid #283344;
+}
+
+/* ---------- drag ghost / tooltip ---------- */
+.drag-ghost {
+  position: fixed; left: 0; top: 0; width: 34px; height: 34px; z-index: 100;
+  pointer-events: none; background-position: center; background-size: contain;
+  background-repeat: no-repeat; image-rendering: pixelated; opacity: .9;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.5));
+}
+
+.tooltip {
+  position: fixed; z-index: 100000; max-width: 280px;
+  padding: 10px 12px; background: #141a24; color: var(--text-on-dark);
+  border: 1px solid var(--border); border-radius: var(--r-window);
+  box-shadow: 0 6px 20px rgba(0,0,0,.65);
+  font: 11px/1.5 "Segoe UI", system-ui, sans-serif;
+  pointer-events: none;
+}
+.tooltip:has(.ms-tooltip-card),
+.tooltip.card-mode {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  max-width: 330px;
+  backdrop-filter: none;
+}
+.tooltip b { display: block; font-size: 13px; color: var(--title-lime); margin-bottom: 4px; }
+.tooltip p { margin-top: 4px; }
+.tip-dim { color: var(--muted); }
+.tip-hl { color: var(--accent-cyan); font-weight: 700; }
+.tip-warn { color: var(--down); }
+
+/* ---------- Authentic MapleStory Tooltip Card (Image 2 1:1) ---------- */
+.ms-tooltip-card {
+  width: 295px;
+  background: linear-gradient(180deg, #182030 0%, #0e1422 100%);
+  border: 1.5px solid #4a5c78;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 11px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  user-select: none;
+}
+
+.tt-stars-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5px;
+  margin-bottom: 6px;
+}
+.tt-star-gap {
+  display: inline-block;
+  width: 5px;
+}
+.tt-star {
+  font-size: 11px;
+  line-height: 1;
+}
+.tt-star.filled {
+  color: #facc15;
+  text-shadow: 0 0 4px rgba(250, 204, 21, 0.6);
+}
+.tt-star.empty {
+  color: #334155;
+}
+
+.tt-title {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin-bottom: 2px;
+  word-break: break-word;
+}
+.tt-trade {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #f97316;
+  margin-bottom: 6px;
+}
+
+.tt-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 6px 0;
+}
+
+.tt-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tt-icon-box {
+  width: 44px;
+  height: 44px;
+  background: radial-gradient(circle at center, #2a374e 0%, #151d2c 100%);
+  border: 1.5px solid #5a7194;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.4);
+}
+.tt-icon {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.tt-meta-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tt-combat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+.tt-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tt-tag {
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 9.5px;
+  color: #cbd5e1;
+}
+
+
+.tt-req-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0 2px;
+  font-size: 10.5px;
+}
+.tt-req-item span {
+  color: #94a3b8;
+  margin-right: 4px;
+}
+.tt-req-item b {
+  color: #ffffff;
+}
+.tt-good {
+  color: #4ade80 !important;
+}
+.tt-bad {
+  color: #f87171 !important;
+}
+
+.tt-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tt-stat-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+}
+.tt-stat-line span {
+  color: #cbd5e1;
+}
+.tt-stat-line b {
+  color: #ffffff;
+  font-weight: 700;
+}
+.tt-bonus {
+  color: #facc15;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.tt-pot-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tt-pot-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.tt-pot-box {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+}
+.tt-pot-line {
+  font-size: 10.5px;
+  color: #e2e8f0;
+  padding-left: 12px;
+}
+
+.tt-footer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: #94a3b8;
+}
+.tt-value {
+  color: #facc15;
+  font-weight: 600;
+}
+.tt-note {
+  color: #94a3b8;
+}
+.tt-note.highlight {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.grab { cursor: grab; }
+
+/* ============================================================================
+   Windows — shared chrome
+============================================================================ */
+.win-layer { position: fixed; inset: 0; pointer-events: none; z-index: 15; }
+
+.win {
+  position: absolute; pointer-events: auto; user-select: none;
+  font: 11px "Segoe UI", system-ui, sans-serif; color: var(--text-on-dark);
+  background: var(--ms-window-border, #3a4454);
+  border: 1px solid var(--ms-window-border, #3a4454);
+  border-radius: var(--r-window);
+  box-shadow: 0 8px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.05) inset;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+
+.win-drag { position: absolute; left: 0; right: 32px; top: 0; height: 30px; cursor: move; z-index: 5; }
+.spr-btn { position: absolute; border: 0; padding: 0; background: transparent; background-repeat: no-repeat; cursor: pointer; image-rendering: pixelated; }
+.spr-btn:disabled { cursor: default; }
+
+/* ---------- Window title bar ---------- */
+.win-css .win-titlebar {
+  display: flex; align-items: center; height: 30px; padding: 0 8px 0 12px;
+  background: linear-gradient(180deg, var(--ms-title-bg, #4f5e77), var(--ms-window-border, #3a4454));
+  border-bottom: 1px solid var(--ms-window-border, #3a4454);
+  flex: 0 0 auto; cursor: move; position: relative; z-index: 2;
+}
+.win-css .win-title {
+  font: 700 11px "Segoe UI", system-ui, sans-serif; letter-spacing: .6px;
+  color: #ffffff; text-transform: uppercase;
+}
+.win-css .win-close {
+  margin-left: auto; width: 20px; height: 20px; display: grid; place-items: center;
+  background: transparent; border: 0; border-radius: var(--r-slot); cursor: pointer;
+  color: var(--muted-2); font: 700 13px "Segoe UI", sans-serif;
+  transition: background .12s, color .12s;
+}
+.win-css .win-close:hover { background: rgba(239, 68, 68, .2); color: var(--down); }
+
+/* Window body */
+.win-body { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; overflow: hidden; min-height: 0; }
+
+/* Legacy sprite window (kept for stat window) */
+.win-css {
+  background: var(--panel-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--r-window);
+}
+
+/* ---------- Stat window rows ---------- */
+.stat-val { position: absolute; left: 72px; width: 110px; font: 600 11px/12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text-on-dark); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.stat-ap { position: absolute; left: 66px; top: 199px; width: 29px; text-align: center; font: 700 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text-on-dark); font-variant-numeric: tabular-nums; }
+.stat-note { position: absolute; left: 14px; right: 14px; top: 306px; font: 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--muted-2); text-align: center; }
+
+/* ---------- Skill window ---------- */
+#skill-win {
+  width: 320px; height: 420px;
+  background: var(--ms-window-border, #3a4454);
+  border: 1px solid var(--ms-window-border, #3a4454);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65);
+}
+#skill-win .win-titlebar {
+  background: linear-gradient(180deg, var(--ms-title-bg, #4f5e77), var(--ms-window-border, #3a4454));
+  border-bottom: 1px solid var(--ms-window-border, #3a4454);
+}
+.skill-win-body {
+  padding: 6px 8px 8px 8px; height: calc(100% - 30px); box-sizing: border-box; overflow: hidden;
+  display: flex; flex-direction: column; gap: 5px;
+  background: var(--ms-panel-bg, #f1f3f6);
+  border-radius: 0 0 7px 7px;
+}
+.skill-tabs {
+  display: flex; gap: 3px; border-bottom: 2px solid var(--ms-title-bg, #4f5e77); padding-bottom: 0;
+}
+.skill-tab {
+  flex: 1; padding: 3px 4px; font: 700 9px -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--ms-text-muted, #6b7688); background: var(--ms-window-bg, #d2d8e1);
+  border: 1px solid var(--ms-panel-border, #9ca8b8); border-bottom: 0;
+  border-radius: 4px 4px 0 0; cursor: pointer; transition: all 0.12s;
+  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.skill-tab.on {
+  background: var(--ms-title-bg, #4f5e77); color: #ffffff; border-color: var(--ms-title-bg, #4f5e77);
+}
+.skill-tab.locked { opacity: 0.6; }
+.skill-banner-card {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--ms-window-bg, #d2d8e1); border: 1px solid var(--ms-panel-border, #9ca8b8);
+  border-radius: 5px; padding: 5px 8px;
+}
+.skill-banner-icon {
+  width: 32px; height: 32px; background-position: center; background-repeat: no-repeat;
+  background-size: contain; image-rendering: pixelated; border-radius: 4px;
+  background-color: var(--ms-title-bg, #4f5e77); border: 1px solid var(--ms-panel-border, #9ca8b8);
+  flex-shrink: 0;
+}
+.skill-banner-text { display: flex; flex-direction: column; min-width: 0; }
+.skill-banner-text b { font: 800 11.5px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--ms-text-primary, #22262e); }
+.skill-banner-text span { font: 600 9.5px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--ms-text-muted, #6b7688); }
+
+.skill-list {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 5px;
+  flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin;
+  padding-right: 2px;
+}
+.skill-row {
+  height: 42px; background: #ffffff; border: 1px solid var(--ms-panel-border, #9ca8b8);
+  border-radius: 4px; display: flex; align-items: center; padding: 3px 5px; box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.12s;
+}
+.skill-row:hover { border-color: var(--ms-title-bg, #4f5e77); }
+.skill-row.locked { opacity: 0.55; background: var(--ms-window-bg, #d2d8e1); }
+.skill-icon {
+  width: 32px; height: 32px; flex-shrink: 0;
+  background-position: center; background-repeat: no-repeat; background-size: contain;
+  image-rendering: pixelated; border-radius: 3px; border: 1px solid var(--ms-panel-border, #9ca8b8);
+  background-color: #2a3547;
+}
+.skill-meta {
+  flex: 1; min-width: 0; margin-left: 6px; display: flex; flex-direction: column; justify-content: center;
+}
+.skill-name {
+  font: 700 9.5px/12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--ms-text-primary, #22262e); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.skill-lv {
+  font: 600 9px/11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--ms-text-muted, #6b7688); margin-top: 1px;
+}
+.skill-up {
+  width: 16px; height: 16px; flex-shrink: 0; margin-left: 3px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.skill-sp-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--ms-window-bg, #d2d8e1); border: 1px solid var(--ms-panel-border, #9ca8b8);
+  border-radius: 4px; padding: 4px 8px; font: 700 10px -apple-system, BlinkMacSystemFont, sans-serif;
+  margin-top: auto;
+}
+.skill-sp-bar .sp-label { color: var(--ms-text-muted, #6b7688); }
+.skill-sp-bar .sp-val { color: var(--ms-accent-orange, #f59e0b); font-size: 13px; font-weight: 800; }
+
+/* ---------- Item tabs ---------- */
+.item-tabs { position: absolute; left: 10px; top: 38px; display: flex; gap: 2px; }
+.item-tabs span {
+  font: 600 9px "Segoe UI", system-ui, sans-serif; padding: 3px 8px;
+  border-radius: var(--r-slot) var(--r-slot) 0 0;
+  background: var(--panel-dark-2); color: var(--muted); cursor: pointer;
+  border: 1px solid var(--border); border-bottom: 0;
+  transition: background .12s, color .12s;
+}
+.item-tabs span.on { background: var(--accent-cyan); color: #fff; border-color: var(--accent-cyan-dim); }
+
+/* ---------- AUTO button ---------- */
+.auto-btn {
+  position: relative; pointer-events: auto; display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 8px 0 6px;
+  font: 700 9px "Segoe UI", system-ui, sans-serif; letter-spacing: .4px; color: #fff; cursor: pointer;
+  border-radius: var(--r-pill); border: 1px solid rgba(156, 168, 184, 0.45);
+  background: linear-gradient(180deg, #4f5e77, #3a4454);
+  text-shadow: 0 1px 1px rgba(0,0,0,.5);
+  transition: filter .12s, background .15s, border-color .15s;
+  z-index: 90;
+  user-select: none;
+  white-space: nowrap;
+}
+.auto-btn:hover {
+  border-color: #9ca8b8;
+  filter: brightness(1.1);
+}
+.auto-btn .auto-dot { width: 6px; height: 6px; border-radius: 50%; background: #7b8794; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+.auto-btn.on {
+  background: linear-gradient(180deg, var(--accent-cyan), var(--accent-cyan-dim));
+  border-color: var(--accent-cyan-dim); color: #fff;
+}
+.auto-btn.on .auto-dot { background: var(--good); box-shadow: 0 0 6px var(--good); animation: autopulse 1s infinite alternate; }
+.auto-btn.auto-boss-btn.on {
+  background: linear-gradient(180deg, #f59e0b, #d97706);
+  border-color: #fbbf24;
+  color: #fff;
+}
+.auto-btn.auto-boss-btn.on .auto-dot {
+  background: #fef08a;
+  box-shadow: 0 0 6px #facc15;
+}
+@keyframes autopulse { from { opacity: .5; } to { opacity: 1; } }
+
+/* ---------- Buffs ---------- */
+.buffbar { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: row-reverse; gap: 4px; pointer-events: auto; }
+.buff {
+  position: relative; width: 32px; height: 32px;
+  background-position: center; background-repeat: no-repeat; background-size: contain;
+  image-rendering: pixelated; border-radius: 4px;
+  border: none !important; box-shadow: none !important; overflow: hidden;
+}
+.buff-shade { position: absolute; left: 0; right: 0; top: 0; background: rgba(0,0,0,.5); pointer-events: none; }
+.buff-time { position: absolute; right: 1px; bottom: 0; z-index: 1; font: 700 9px "Segoe UI", sans-serif; color: #fff; text-shadow: 0 1px 2px #000, 0 0 2px #000; }
+
+/* ---------- Text-only compact panels vs standard panels ---------- */
+.win:not(.text-only) .text-only-bar,
+.win:not(.text-only) .text-only-body {
+  display: none !important;
+}
+.win.text-only .win-titlebar,
+.win.text-only .win-drag,
+.win.text-only .win-body,
+.win.text-only .win-close,
+.win.text-only .x-body,
+.win.text-only .x-close {
+  display: none !important;
+}
+
+.win.text-only {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%) !important;
+  width: 320px; max-width: calc(100vw - 32px); height: auto; min-height: 120px; z-index: 17;
+  background: var(--panel-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--r-window);
+  box-shadow: 0 8px 30px rgba(0,0,0,.55);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.win.text-only .text-only-bar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; background: linear-gradient(180deg, var(--chrome-2), var(--panel-dark-2));
+  border-bottom: 1px solid var(--border-2);
+  color: var(--title-lime); font: 700 10px "Segoe UI", sans-serif; letter-spacing: .5px; text-transform: uppercase;
+}
+.win.text-only .text-only-bar button {
+  margin-left: auto; font: 700 9px "Segoe UI", sans-serif; padding: 3px 7px;
+  border: 1px solid var(--border); border-radius: var(--r-slot);
+  background: var(--panel-dark-2); color: var(--text-on-dark); cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.win.text-only .text-only-bar button:hover { background: rgba(239, 68, 68, .2); color: var(--down); }
+.win.text-only .text-only-body { flex: 1; padding: 10px 12px; overflow-y: auto; font: 12px/1.55 "Segoe UI", sans-serif; color: var(--text-on-dark); }
+.win.text-only .text-only-body h3 { font-size: 13px; margin-bottom: 6px; color: var(--title-lime); }
+.win.text-only .text-only-body .stat-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(74,85,104,.35); }
+.win.text-only .text-only-body .stat-row b { color: var(--accent-cyan); font-weight: 700; }
+.win.text-only .text-only-body .skill-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.win.text-only .text-only-body .skill-row .s-ic {
+  width: 26px; height: 26px; background: center / contain no-repeat; image-rendering: pixelated;
+  border: 1px solid var(--border); border-radius: var(--r-slot); background-color: #1d243b; flex: none;
+}
+.win.text-only .text-only-body .skill-row .s-meta { flex: 1; min-width: 0; }
+.win.text-only .text-only-body .skill-row .s-name { font-weight: 700; color: var(--text-on-dark); }
+.win.text-only .text-only-body .skill-row .s-lv { color: var(--muted); font-size: 11px; }
+.win.text-only .text-only-body .skill-row button {
+  font: 700 9px "Segoe UI", sans-serif; padding: 3px 8px;
+  border: 1px solid var(--accent-cyan-dim); border-radius: var(--r-slot);
+  background: var(--accent-cyan); color: #fff; cursor: pointer; transition: filter .12s;
+}
+.win.text-only .text-only-body .skill-row button:disabled { opacity: .45; cursor: default; filter: saturate(.5); }
+.win.text-only .text-only-body .skill-row button:enabled:hover { filter: brightness(1.15); }
+.win.text-only .text-only-body .equip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.win.text-only .text-only-body .equip-slot {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px;
+  border: 1px solid var(--border); border-radius: var(--r-slot);
+  cursor: pointer; background: var(--panel-dark-2); transition: border-color .12s;
+}
+.win.text-only .text-only-body .equip-slot:hover { border-color: var(--accent-cyan); }
+.win.text-only .text-only-body .equip-slot .e-ic { width: 30px; height: 30px; background: center / contain no-repeat; image-rendering: pixelated; border-radius: 3px; }
+.win.text-only .text-only-body .equip-slot .e-name { font-size: 9px; color: var(--muted); text-align: center; }
+.win.text-only .text-only-body .equip-slot .e-stats { font-size: 9px; color: var(--warn); }
+.win.text-only .text-only-body .inv-item { display: flex; align-items: center; gap: 5px; padding: 4px 5px; border-radius: var(--r-slot); cursor: pointer; transition: background .12s; }
+.win.text-only .text-only-body .inv-item:hover { background: var(--panel-dark-2); }
+.win.text-only .text-only-body .inv-item .i-ic { width: 24px; height: 24px; background: center / contain no-repeat; image-rendering: pixelated; border-radius: 3px; }
+.win.text-only .text-only-body .inv-item .i-name { flex: 1; font-size: 11px; color: var(--text-on-dark); }
+.win.text-only .text-only-body .inv-item .i-count { font-size: 10px; color: var(--muted); }
+.win.text-only .text-only-body .craft-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.win.text-only .text-only-body .craft-row .c-ic { width: 28px; height: 28px; background: center / contain no-repeat; image-rendering: pixelated; border-radius: 3px; }
+.win.text-only .text-only-body .craft-row button {
+  font: 700 9px "Segoe UI", sans-serif; padding: 3px 10px;
+  border: 1px solid var(--accent-cyan-dim); border-radius: var(--r-slot);
+  background: var(--accent-cyan); color: #fff; cursor: pointer;
+}
+.win.text-only .text-only-body .craft-row button:disabled { opacity: .45; cursor: default; filter: saturate(.5); }
+.win.text-only .text-only-body .craft-row button:enabled:hover { filter: brightness(1.15); }
+.win.text-only .text-only-body .ah-row { display: flex; align-items: center; gap: 8px; padding: 4px 5px; border-radius: var(--r-slot); }
+.win.text-only .text-only-body .ah-row:hover { background: var(--panel-dark-2); }
+.win.text-only .text-only-body .ah-row .a-ic { width: 26px; height: 26px; background: center / contain no-repeat; image-rendering: pixelated; border-radius: 3px; }
+.win.text-only .text-only-body .ah-row .a-price { font-weight: 700; color: var(--warn); }
+.win.text-only .text-only-body .ah-row button {
+  font: 700 9px "Segoe UI", sans-serif; padding: 3px 10px;
+  border: 1px solid var(--accent-cyan-dim); border-radius: var(--r-slot);
+  background: var(--accent-cyan); color: #fff; cursor: pointer;
+}
+.win.text-only .text-only-body .ah-row button:disabled { opacity: .45; cursor: default; filter: saturate(.5); }
+.win.text-only .text-only-body .ah-row button:enabled:hover { filter: brightness(1.15); }
+
+/* ---------- Transient logs (anchored to the right page boundary) ---------- */
+.logs {
+  position: fixed; right: 12px; bottom: 160px; width: auto; max-width: 420px;
+  display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 3px;
+  pointer-events: none; z-index: 95;
+  font: 11px/15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-align: right;
+}
+.log-line {
+  align-self: flex-end; text-align: right; white-space: normal;
+  color: #cbd5e1; text-shadow: 0 1px 2px rgba(0,0,0,.9), 0 0 3px rgba(0,0,0,.8);
+  padding: 2px 8px;
+  background: rgba(10, 15, 26, 0.75);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.log-line.exp { color: #ffe98a; }
+.log-line.meso { color: #7dff6b; }
+.log-line.level { color: var(--title-lime); font-weight: 700; }
+.log-line.notice { color: #9ce4ff; }
+.log-line.system { color: #94a3b8; }
+.log-line.say { color: #fff; }
+
+/* ---------- Floating gain counters ---------- */
+.gains { position: fixed; z-index: 120; display: flex; flex-direction: column; gap: 6px; pointer-events: none; font: 700 14px/1.2 "Segoe UI", sans-serif; color: #fff; text-shadow: 0 1px 2px #000, 0 0 4px rgba(0,0,0,.5); }
+.gain { padding: 4px 10px; border-radius: var(--r-slot); animation: gainpop .5s cubic-bezier(.2,.9,.3,1.2); }
+.gain-exp { color: #ffe98a; }
+.gain-meso { color: #7dff6b; }
+.gain-level { color: #ff9ad0; }
+@keyframes gainpop { 0% { transform: translateY(0) scale(.8); opacity: 0; } 60% { transform: translateY(-12px) scale(1.05); opacity: 1; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+
+/* ---------- Modern MapleStory Chat Balloon ---------- */
+.balloon {
+  position: absolute; left: 0; top: 0; pointer-events: none; z-index: 50;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+}
+.balloon-body {
+  position: relative;
+  background: #ffffff;
+  color: #111827;
+  border: 1.5px solid #1f2937;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font: 700 11.5px/14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-align: center;
+  max-width: 180px;
+  min-width: 24px;
+  word-break: break-word;
+}
+.balloon-beak {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #1f2937;
+}
+.balloon-beak::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -6px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #ffffff;
+}
+
+/* ============================================================================
+   Idle RPG panels — Inventory / Crafting / Auction / Equipment
+============================================================================ */
+.x-body { position: absolute; left: 0; right: 0; top: 30px; bottom: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; overflow: hidden; }
+
+/* ---------- Tabs ---------- */
+.xtabs { display: flex; gap: 2px; flex-wrap: wrap; }
+.xtabs span {
+  font: 600 9px "Segoe UI", system-ui, sans-serif; padding: 4px 10px;
+  border-radius: var(--r-slot) var(--r-slot) 0 0;
+  background: var(--panel-dark-2); color: var(--muted); cursor: pointer;
+  border: 1px solid var(--border); border-bottom: 0;
+  transition: background .12s, color .12s;
+}
+.xtabs span:hover { background: #2a3446; color: var(--text-on-dark); }
+.xtabs span.on { background: var(--accent-cyan); color: #fff; border-color: var(--accent-cyan-dim); text-shadow: none; }
+
+/* ---------- Icons / cells ---------- */
+.ic { display: block; width: 32px; height: 32px; background: center / contain no-repeat; image-rendering: pixelated; }
+.ic.sm { width: 16px; height: 16px; display: inline-block; vertical-align: -4px; }
+.ic.lg { width: 40px; height: 40px; }
+
+.gcell {
+  position: relative; width: 38px; height: 38px; display: grid; place-items: center;
+  background: var(--panel-light); border: 1px solid #cfd0d8; border-radius: var(--r-slot);
+  cursor: pointer; transition: border-color .12s, box-shadow .12s;
+}
+.gcell.blank { cursor: default; background: var(--panel-dark-2); border-color: var(--border-2); }
+.gcell:not(.blank):hover { border-color: var(--accent-cyan); box-shadow: 0 0 0 1px var(--accent-cyan) inset; }
+.gcell.r1 { border-color: #3fb6e8; box-shadow: 0 0 0 1px #3fb6e8 inset; background: #f1fbff; }
+.gcell.r2 { border-color: #a35de0; box-shadow: 0 0 0 1px #a35de0 inset; background: #f8f1ff; }
+.gcell.r3 { border-color: #e2a700; box-shadow: 0 0 0 1px #e2a700 inset; background: #fffaea; }
+.gcell.r4 { border-color: var(--good); box-shadow: 0 0 0 1px var(--good) inset, 0 0 6px rgba(92,255,122,.4); background: #effff2; }
+.gstar { position: absolute; right: 2px; top: 0; font: 700 8px "Segoe UI", sans-serif; color: var(--warn); text-shadow: 0 0 2px #fff, 0 0 2px rgba(0,0,0,.5); }
+.cnt { position: absolute; right: 3px; bottom: 0; font: 700 9px "Segoe UI", sans-serif; color: var(--text-on-light); text-shadow: 0 0 2px #fff, 0 0 2px #fff; }
+
+/* ---------- Buttons ---------- */
+.xbtn {
+  font: 600 10px "Segoe UI", system-ui, sans-serif; padding: 5px 10px;
+  border: 1px solid var(--border); border-radius: var(--r-slot);
+  background: var(--panel-dark-2); color: var(--text-on-dark);
+  cursor: pointer; white-space: nowrap; transition: filter .12s, border-color .12s;
+}
+.xbtn:hover:not(:disabled) { filter: brightness(1.2); border-color: var(--accent-cyan); }
+.xbtn:disabled { opacity: .45; cursor: default; filter: saturate(.5); }
+.xbtn.big { padding: 8px 16px; font-size: 11px; align-self: center; }
+.xbtn.gold { background: linear-gradient(180deg, var(--accent-cyan), var(--accent-cyan-dim)); border-color: var(--accent-cyan-dim); color: #fff; }
+.xnote { font: 10px "Segoe UI", sans-serif; color: var(--muted); line-height: 1.45; }
+.inv-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.meso {
+  padding: 4px 8px 4px 22px; min-width: 90px; text-align: right;
+  font: 700 10px "Segoe UI", sans-serif; color: var(--text-on-dark);
+  background: var(--panel-dark-2) url("https://maplestory.io/api/GMS/240/item/4031138/icon") 4px center / 13px no-repeat;
+  border: 1px solid var(--border); border-radius: var(--r-slot);
+}
+.inv-grid { display: grid; grid-template-columns: repeat(5, 38px); gap: 3px; align-content: start; overflow-y: auto; max-height: 222px; padding-right: 2px; }
+
+/* ---------- Equipment ---------- */
+.egrid-new { display: grid; grid-template-columns: 38px 38px 104px 38px 38px; gap: 5px; align-items: center; justify-content: center; }
+.e-left-col, .e-right-col { display: flex; flex-direction: column; gap: 3px; }
+.eslot.empty {
+  width: 38px; height: 38px; display: grid; place-items: center;
+  border: 1px dashed var(--border); border-radius: var(--r-slot);
+  background: var(--panel-dark-2);
+}
+.eslot.empty span { font: 7px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--muted-2); text-align: center; }
+.eprev {
+  position: relative; width: 104px; height: 160px; display: grid; place-items: end center;
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  border-radius: var(--r-slot); overflow: hidden; background-color: var(--panel-dark-2);
+}
+.eprev img { image-rendering: pixelated; margin-bottom: 8px; }
+.ecp {
+  margin-top: 6px; display: flex; align-items: baseline; justify-content: space-between;
+  padding: 4px 8px; background: linear-gradient(180deg, var(--chrome-2), var(--panel-dark-2));
+  border-radius: var(--r-slot); border: 1px solid var(--border-2); color: #fff;
+}
+.ecp small { font: 700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--title-lime); letter-spacing: .5px; }
+.ecp b { font: 700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--title-lime); }
+.estats { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 6px; margin-top: 4px; }
+.erow {
+  display: flex; justify-content: space-between; padding: 2px 6px;
+  background: var(--panel-light-2); border-radius: 3px; font: 600 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text-on-dark);
+}
+.erow:nth-child(odd) { background: var(--panel-light); }
+.erow b { color: var(--text-on-light); font-weight: 700; }
+.ehint { font: 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--muted-2); padding-top: 4px; }
+
+/* ---------- Crafting ---------- */
+.xlist { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; min-height: 0; flex: 1; padding-right: 2px; }
+.xrow, .ah-row {
+  display: flex; gap: 6px; align-items: center; padding: 4px;
+  background: var(--panel-light-2); border: 1px solid #c8c8d2; border-radius: var(--r-slot);
+}
+.xrow.locked { opacity: .55; }
+.xinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.xinfo b { font: 700 11px "Segoe UI", sans-serif; color: var(--text-on-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xinfo small { font: 9px "Segoe UI", sans-serif; color: var(--muted-2); }
+.needs { display: flex; flex-wrap: wrap; gap: 3px 6px; font: 700 9px "Segoe UI", sans-serif; color: #3a7d2a; }
+.need.miss { color: var(--bad); }
+.sf { flex: 1; min-height: 0; display: flex; gap: 6px; }
+.pick-list {
+  width: 92px; display: grid; grid-template-columns: repeat(2, 42px); gap: 3px;
+  align-content: start; overflow-y: auto; padding: 3px;
+  background: var(--panel-dark-2); border: 1px solid var(--border-2); border-radius: var(--r-slot);
+}
+.pickc { padding: 1px; border-radius: var(--r-slot); }
+.pickc.on { background: var(--accent-cyan); }
+.sf-panel {
+  flex: 1; display: flex; flex-direction: column; gap: 7px; padding: 7px;
+  background: var(--panel-light-2); border: 1px solid #c8c8d2; border-radius: var(--r-slot); min-width: 0;
+}
+.sf-head { display: flex; gap: 8px; align-items: center; }
+.sf-head b { font: 700 12px "Segoe UI", sans-serif; color: var(--text-on-light); }
+.stars { color: var(--warn); font-size: 9px; letter-spacing: -1px; }
+.stars.big { font-size: 11px; }
+.stars .dim { color: #d8d8e0; }
+.sf-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; font: 10px "Segoe UI", sans-serif; color: var(--muted-2); }
+.sf-grid b { color: var(--text-on-light); text-align: right; }
+.sf-grid b.miss, b.miss { color: var(--bad); }
+.pot-box { border: 1px solid; border-radius: var(--r-slot); padding: 4px 6px; background: #1f2433; color: #fff; font: 10px "Segoe UI", sans-serif; }
+.craft-result { min-height: 14px; text-align: center; font: 700 12px "Segoe UI", sans-serif; color: var(--muted); letter-spacing: .5px; }
+.craft-result.ok { color: var(--good); animation: pop .45s ease-out; }
+.craft-result.bad { color: var(--bad); animation: shake .35s; }
+@keyframes pop { 0% { transform: scale(1.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+/* ---------- Auction house ---------- */
+.ah-bar { display: flex; gap: 4px; align-items: center; }
+.ah-bar .xbtn { margin-left: auto; }
+.chip {
+  font: 600 9px "Segoe UI", sans-serif; padding: 3px 9px;
+  border-radius: var(--r-pill); background: var(--panel-dark-2); color: var(--muted);
+  cursor: pointer; border: 1px solid var(--border); transition: background .12s, color .12s;
+}
+.chip:hover { color: var(--text-on-dark); }
+.chip.on { background: var(--accent-cyan); color: #fff; border-color: var(--accent-cyan-dim); }
+.xlist.ah { max-height: 276px; }
+.xlist.ah.tall { max-height: 296px; }
+.ah-price { width: 74px; text-align: right; font: 700 11px "Segoe UI", sans-serif; color: var(--warn); display: flex; flex-direction: column; }
+.ah-price small { font: 8px "Segoe UI", sans-serif; color: var(--muted-2); }
+.ah-row input {
+  width: 74px; font: 700 10px "Segoe UI", sans-serif; padding: 3px 4px;
+  border: 1px solid var(--border); border-radius: var(--r-slot); text-align: right;
+  background: var(--panel-dark-2); color: var(--text-on-dark); outline: none;
+}
+.deal { color: var(--muted); }
+.deal.good { color: var(--good); font-weight: 700; }
+.deal.bad { color: var(--bad); }
+
+/* ---------- Gear tooltips ---------- */
+.gtip b { font-size: 13px; text-shadow: none; }
+.gtip .stars { display: block; text-align: center; font-size: 10px; }
+.gtip .up { color: var(--up); }
+.gtip .down { color: var(--down); }
+.gtip .pot-head { margin-top: 6px; font-weight: 700; border-top: 1px dashed var(--border); padding-top: 4px; }
+.gtip .pot { margin-top: 1px; }
+
+/* ---------- Menu popup ---------- */
+.menu-pop {
+  position: fixed; z-index: 60; width: 168px; padding: 5px;
+  background: var(--panel-dark); border: 1px solid var(--border);
+  border-radius: var(--r-window); box-shadow: 0 6px 20px rgba(0,0,0,.55);
+  display: flex; flex-direction: column; gap: 1px;
+}
+.menu-pop-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 10px; border: 0; border-radius: var(--r-slot);
+  background: transparent; font: 600 11px "Segoe UI", sans-serif; color: var(--text-on-dark);
+  cursor: pointer; text-align: left; transition: background .12s, color .12s;
+}
+.menu-pop-item:hover { background: var(--accent-cyan); color: #fff; }
+.menu-pop-item kbd { font: 9px "Segoe UI", sans-serif; color: var(--muted-2); }
+.menu-pop-item:hover kbd { color: rgba(255,255,255,.8); }
+
+/* ---------- Stage HUD + boss bar ---------- */
+.stage-hud {
+  position: absolute; left: 50%; top: 8px; transform: translateX(-50%);
+  width: 252px; padding: 6px 8px;
+  background: var(--bg-overlay); border: 1px solid var(--border);
+  border-radius: var(--r-window); pointer-events: auto;
+  display: flex; flex-direction: column; gap: 4px; align-items: stretch;
+  font: 700 10px "Segoe UI", sans-serif; color: var(--text-on-dark);
+  text-shadow: 0 1px 1px rgba(0,0,0,.6); backdrop-filter: blur(4px);
+}
+.st-top { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px; }
+.st-n { font: 700 13px "Segoe UI", sans-serif; color: var(--title-lime); letter-spacing: 1px; }
+.st-cp { color: var(--muted); font-weight: 500; }
+.st-bar {
+  position: relative; height: 12px; background: #10141f;
+  border: 1px solid var(--border-2); border-radius: var(--r-pill); overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.12) inset;
+}
+.st-fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--exp-lime), var(--exp-lime-2)); transition: width .25s; border-radius: var(--r-pill); }
+.st-bar span { position: relative; display: block; text-align: center; line-height: 12px; font-size: 9px; }
+.st-actions {
+  display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 3px;
+}
+.auto-boss-toggle {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
+  font: 700 9px "Segoe UI", sans-serif; letter-spacing: 0.3px; color: #94a3b8;
+  border-radius: var(--r-pill); border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.7); cursor: pointer;
+  transition: all 0.15s;
+}
+.auto-boss-toggle .auto-dot { width: 5px; height: 5px; border-radius: 50%; background: #64748b; }
+.auto-boss-toggle:hover { color: #fff; border-color: rgba(255, 255, 255, 0.25); background: rgba(30, 41, 59, 0.85); }
+.auto-boss-toggle.on {
+  color: #fff; border-color: #fbbf24;
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.4), rgba(217, 119, 6, 0.5));
+}
+.auto-boss-toggle.on .auto-dot { background: #fbbf24; box-shadow: 0 0 6px #facc15; }
+
+.boss-go {
+  align-self: center; font: 700 11px "Segoe UI", sans-serif; padding: 4px 12px;
+  border: 1px solid #b91c1c; border-radius: var(--r-pill); color: #fff;
+  background: linear-gradient(180deg, #ef4444, #b91c1c);
+  text-shadow: 0 1px 1px rgba(0,0,0,.4); cursor: pointer;
+  animation: bosspulse 1s infinite alternate; transition: filter .12s;
+}
+.boss-go:hover:not(:disabled) { filter: brightness(1.15); }
+.boss-go:disabled { animation: none; opacity: .6; cursor: default; }
+@keyframes bosspulse { from { box-shadow: 0 0 0 0 rgba(239, 68, 68, .7); } to { box-shadow: 0 0 10px 3px rgba(239, 68, 68, .55); } }
+
+.boss-bar {
+  position: absolute; left: 50%; top: 54px; transform: translateX(-50%);
+  width: min(520px, 92vw); display: flex; gap: 6px; align-items: center;
+  padding: 6px 10px 6px 5px;
+  background: var(--bg-overlay); border: 1px solid var(--border);
+  border-radius: var(--r-window); color: #fff;
+  font: 700 11px "Segoe UI", sans-serif; text-shadow: 0 1px 1px rgba(0,0,0,.6);
+  backdrop-filter: blur(4px);
+}
+.boss-ic {
+  width: 38px; height: 38px; background: center / contain no-repeat; image-rendering: pixelated;
+  border: 1px solid var(--border); border-radius: var(--r-slot); background-color: rgba(255,255,255,.08);
+}
+.boss-main { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.boss-name small { color: var(--muted); font-weight: 400; }
+.boss-hp { position: relative; height: 13px; background: #3a0b0b; border: 1px solid var(--border-2); border-radius: var(--r-pill); overflow: hidden; }
+.boss-fill {
+  position: absolute; inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #ff8b7a, #d01818 60%, #8a0c0c); transition: width .15s;
+  border-radius: var(--r-pill);
+}
+.boss-num { position: relative; display: block; text-align: center; font-size: 9px; line-height: 13px; }
+.boss-time { font: 700 14px "Segoe UI", sans-serif; color: var(--title-lime); min-width: 38px; text-align: right; }
+.boss-time.warn { color: var(--down); }
+
+/* ---------- All Items browser ---------- */
+.ai-search { display: flex; align-items: center; gap: 6px; }
+.ai-search-input {
+  flex: 1; padding: 5px 9px; font: 600 11px "Segoe UI", system-ui, sans-serif;
+  background: var(--panel-dark-2); color: var(--text-on-dark);
+  border: 1px solid var(--border); border-radius: var(--r-slot); outline: none;
+  transition: border-color .12s;
+}
+.ai-search-input:focus { border-color: var(--accent-cyan); }
+.ai-search-input::placeholder { color: var(--muted-2); }
+.ai-count { font: 600 9px "Segoe UI", sans-serif; color: var(--muted-2); white-space: nowrap; }
+.ai-grid {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(auto-fill, 38px); gap: 4px; align-content: start; padding: 2px;
+}
+.ai-foot { gap: 6px; }
+
+/* ---------- Offline rewards ---------- */
+.offline { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgba(0, 0, 0, .35); backdrop-filter: blur(2px); }
+.offline-card {
+  position: relative; width: min(340px, 92vw); padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+  font: 11px "Segoe UI", sans-serif; color: var(--text-on-dark);
+}
+.off-lead { font-size: 12px; line-height: 1.45; color: var(--text-on-dark); }
+.off-grid {
+  display: grid; grid-template-columns: 1fr auto; gap: 3px 10px;
+  padding: 8px 10px; background: var(--panel-light-2);
+  border: 1px solid #c8c8d2; border-radius: var(--r-slot);
+}
+.off-grid b { color: var(--warn); }
+.off-items { display: flex; flex-wrap: wrap; gap: 3px; }
+.off-btns { display: flex; justify-content: center; }
+.off-note { font-size: 9px; text-align: center; color: var(--muted-2); }
+
+/* ============================================================================
+   Modern MapleStory Windows Suite (Exact 1:1 Match to Reference Screenshot)
+============================================================================ */
+
+/* ---------- Quick Move Button under Minimap ---------- */
+.mini-quick-move {
+  position: absolute; left: 8px; top: 168px; width: 92px; height: 22px;
+  background: rgba(14, 20, 32, 0.88); border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 8px; color: #cbd5e1; font: 700 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  cursor: pointer; z-index: 11; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  transition: all 0.12s;
+}
+.mini-quick-move:hover { background: rgba(30, 42, 64, 0.95); color: #fff; border-color: rgba(255, 255, 255, 0.35); }
+
+/* ---------- 1. Character Info Window (#char-info-win) ---------- */
+#char-info-win {
+  width: 242px; height: 204px;
+  background: var(--ms-window-border);
+  border: 1px solid var(--ms-window-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+}
+#char-info-win .win-titlebar {
+  background: linear-gradient(180deg, var(--ms-title-bg), var(--ms-window-border));
+  border-bottom: 1px solid var(--ms-window-border);
+}
+#char-info-win .x-body, .ci-body {
+  display: flex; flex-direction: column; gap: 4px; padding: 5px; height: 100%; box-sizing: border-box;
+  background: var(--ms-panel-bg);
+  border-radius: 0 0 7px 7px;
+}
+.ci-top-box {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--ms-window-bg); border: 1px solid var(--ms-panel-border);
+  border-radius: 4px; padding: 2px 8px; font: 700 9.5px -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.ci-job { color: var(--ms-text-primary); font-weight: 700; }
+.ci-lv { color: var(--ms-text-muted); font-weight: 700; }
+.ci-main-grid {
+  display: grid; grid-template-columns: 66px 1fr 66px; gap: 4px; align-items: center; margin: 2px 0;
+}
+.ci-col-left, .ci-col-right { display: flex; flex-direction: column; gap: 3px; }
+.ci-stat-pill {
+  background: var(--ms-window-bg); border: 1px solid var(--ms-panel-border);
+  border-radius: 12px; padding: 1.5px 6px; display: flex; justify-content: space-between;
+  font: 700 8.5px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--ms-text-muted);
+}
+.ci-stat-pill b { color: var(--ms-text-value); }
+.ci-col-center { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.ci-avatar-wrap { width: 68px; height: 68px; display: flex; align-items: flex-end; justify-content: center; }
+.ci-avatar { image-rendering: pixelated; max-width: 64px; max-height: 64px; }
+.ci-name-pill {
+  background: var(--accent-cyan); color: #ffffff; border-radius: 12px; padding: 1px 12px;
+  font: 800 9.5px -apple-system, BlinkMacSystemFont, sans-serif; text-align: center;
+  box-shadow: 0 1px 4px rgba(0, 188, 212, 0.4);
+}
+.ci-pill-btn {
+  border-radius: 12px; padding: 2.5px 4px; font: 700 8px -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer; text-align: center; border: 0; white-space: nowrap;
+}
+.ci-pill-btn.cyan { background: var(--accent-cyan); color: #fff; }
+.ci-pill-btn.slate { background: var(--ms-title-bg); color: var(--ms-text-light); }
+.ci-bottom { margin-top: auto; }
+.ci-detail-btn {
+  width: 100%; height: 20px; border-radius: 10px; border: 1px solid var(--ms-panel-border);
+  background: linear-gradient(180deg, var(--ms-title-bg), var(--ms-window-border)); color: #ffffff;
+  font: 700 9px -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer; transition: filter 0.12s;
+}
+.ci-detail-btn:hover { filter: brightness(1.15); }
+
+/* ---------- 2. Main Stat Window (#stat-win) ---------- */
+#stat-win {
+  width: 290px; height: 442px;
+  background: var(--ms-window-border);
+  border: 1px solid var(--ms-window-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+}
+#stat-win .win-titlebar {
+  background: linear-gradient(180deg, var(--ms-title-bg), var(--ms-window-border));
+  border-bottom: 1px solid var(--ms-window-border);
+}
+#stat-win .x-body, .stat-body {
+  display: flex; flex-direction: column; gap: 3px; padding: 5px 6px; height: 100%; box-sizing: border-box;
+  background: #505c6e;
+  border-radius: 0 0 7px 7px;
+}
+.stat-cp-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #394759; border: 1px solid #4f6178;
+  border-radius: 3px; padding: 4px 8px;
+}
+.stat-cp-label { color: var(--ms-window-bg); font: 700 9.5px -apple-system, BlinkMacSystemFont, sans-serif; }
+.stat-cp-num { color: var(--ms-text-light); font: 900 13px -apple-system, BlinkMacSystemFont, sans-serif; }
+.stat-cp-q {
+  width: 13px; height: 13px; border-radius: 50%; background: #4f6178; border: 1px solid #6b829e;
+  display: flex; align-items: center; justify-content: center; font: 700 8.5px sans-serif; color: #ffffff;
+}
+.stat-core-6 {
+  display: flex; flex-direction: column; gap: 2px;
+  background: #64748b; border: 1px solid var(--ms-panel-border);
+  border-radius: 3px; padding: 4px 6px;
+}
+.stat-core-row {
+  display: grid; grid-template-columns: 26px 1fr 26px 1fr; gap: 4px; align-items: center;
+  font: 700 9px -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.stat-core-row span { color: #f1f5f9; }
+.stat-core-row b { color: #ffffff; text-align: right; }
+.stat-detailed-box {
+  background: #5a687d; border: 1px solid var(--ms-panel-border);
+  border-radius: 3px; padding: 4px 6px; display: flex; flex-direction: column; gap: 2px;
+  flex: 1; overflow-y: auto; scrollbar-width: none;
+}
+.stat-det-row {
+  display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 3px; align-items: center;
+  font: 600 8px/11px -apple-system, BlinkMacSystemFont, sans-serif;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06); padding: 1px 0;
+}
+.stat-det-row span { color: var(--ms-window-bg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-det-row b { color: #ffffff; text-align: right; white-space: nowrap; font-weight: 700; }
+.stat-det-row b.hl-gold { color: var(--ms-accent-orange); }
+.stat-dots { display: flex; justify-content: center; gap: 3px; margin-top: auto; padding-top: 2px; }
+.stat-dots .dot { width: 5px; height: 5px; border-radius: 50%; background: #475569; }
+.stat-dots .dot.on { background: #cbd5e1; }
+.stat-foot-buttons { display: flex; gap: 4px; margin-top: auto; }
+.stat-foot-btn {
+  flex: 1; height: 22px; border-radius: 11px; border: 1px solid #5a6e87;
+  background: linear-gradient(180deg, var(--ms-title-bg), var(--ms-window-border)); color: #ffffff;
+  font: 700 9px -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer; transition: filter 0.12s;
+}
+.stat-foot-btn:hover { filter: brightness(1.15); }
+
+/* ---------- 3. Hyper Stats Window (#hyper-stat-win) ---------- */
+#hyper-stat-win {
+  width: 120px; height: 442px;
+  background: var(--ms-window-border);
+  border: 1px solid var(--ms-window-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+}
+#hyper-stat-win .win-titlebar {
+  background: linear-gradient(180deg, var(--ms-title-bg), var(--ms-window-border));
+  border-bottom: 1px solid var(--ms-window-border);
+}
+#hyper-stat-win .x-body, .hyper-body {
+  display: flex; flex-direction: column; gap: 3px; padding: 4px; height: 100%; box-sizing: border-box;
+  background: #505c6e;
+  border-radius: 0 0 7px 7px;
+}
+.hyper-list {
+  display: flex; flex-direction: column; gap: 1.5px; flex: 1; overflow-y: auto; scrollbar-width: none;
+}
+.hyper-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #5a687d; border: 1px solid #4a576a;
+  border-radius: 2px; padding: 1.5px 3px; font: 600 7.5px -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.hyper-name { color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 54px; }
+.hyper-stepper { display: flex; align-items: center; gap: 2px; }
+.hyper-add, .hyper-up {
+  width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 1.5px; background: var(--ms-accent-orange); color: #fff;
+  font: 700 7.5px sans-serif; cursor: pointer; padding: 0;
+}
+.hyper-lv { color: var(--ms-window-bg); font: 700 7.5px sans-serif; min-width: 22px; text-align: center; }
+.hyper-foot {
+  display: flex; flex-direction: column; gap: 2px; border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 2px; margin-top: auto;
+}
+.hyper-point { display: flex; justify-content: space-between; font: 700 8px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--ms-window-bg); }
+.hyper-point b { color: var(--ms-accent-orange); }
+.hyper-actions { display: flex; gap: 2px; }
+.hyper-btn {
+  flex: 1; height: 18px; border-radius: 9px; border: 1px solid #5a6e87; font: 700 8px -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+}
+.hyper-btn.slate { background: var(--ms-title-bg); color: #ffffff; }
+.hyper-btn.cyan { background: var(--accent-cyan); color: #fff; }
+
+/* ---------- 4. Ability Window (#ability-win) ---------- */
+#ability-win {
+  width: 185px; height: 172px;
+  background: var(--ms-window-border);
+  border: 1px solid var(--ms-window-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+}
+#ability-win .win-titlebar {
+  background: linear-gradient(180deg, var(--ms-title-bg), var(--ms-window-border));
+  border-bottom: 1px solid var(--ms-window-border);
+}
+#ability-win .x-body, .ability-body {
+  display: flex; flex-direction: column; gap: 3px; padding: 4px 6px; height: 100%; box-sizing: border-box;
+  background: #505c6e;
+  border-radius: 0 0 7px 7px;
+}
+.ability-card.epic {
+  background: linear-gradient(180deg, #6b21a8 0%, #4c1d95 100%);
+  border: 1px solid #a855f7; border-radius: 3px; padding: 3px 5px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.ability-tier {
+  font: 800 8.5px -apple-system, BlinkMacSystemFont, sans-serif; color: #f3e8ff;
+  display: flex; align-items: center; gap: 3px;
+}
+.ability-line.main {
+  background: rgba(30, 20, 60, 0.85); border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 2px; padding: 2px 4px; font: 700 8px -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #ffffff; text-align: center;
+}
+.ability-line.sub {
+  background: var(--ms-accent-blue); border: 1px solid #38bdf8; border-radius: 2px;
+  padding: 1.5px 4px; font: 700 8px -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #ffffff; text-align: center;
+}
+.ability-presets-bar {
+  display: flex; align-items: center; gap: 4px;
+  background: #394759; padding: 2px 4px; border-radius: 3px;
+  font: 700 8px -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.ab-preset-label { color: var(--ms-window-bg); }
+.ab-preset-btns { display: flex; gap: 2px; }
+.ab-preset-btn {
+  width: 14px; height: 14px; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--ms-title-bg); color: #ffffff; font: 700 8px sans-serif; cursor: pointer;
+}
+.ab-preset-btn.on { background: var(--ms-accent-blue); color: #fff; }
+.ab-preset-apply {
+  padding: 0 4px; border-radius: 2px; background: var(--ms-title-bg); border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff; font: 600 7.5px sans-serif; cursor: pointer; margin-left: auto;
+}
+.ability-foot {
+  display: flex; align-items: center; justify-content: space-between; margin-top: auto;
+  padding-top: 2px; border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.ability-honor { font: 700 8.5px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--ms-window-bg); }
+.ability-honor b { color: #ffffff; margin-left: 3px; }
+.ability-reset-btn {
+  padding: 2px 8px; border-radius: 10px; border: 1px solid #5a6e87;
+  background: linear-gradient(180deg, var(--ms-title-bg), var(--ms-window-border)); color: #fff;
+  font: 700 8px -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer;
+}
+
+/* ---------- Auto Settings Window (#auto-win) ---------- */
+#auto-win {
+  width: 280px;
+  background: var(--ms-window-border, #3a4454);
+  border: 1px solid var(--ms-window-border, #3a4454);
+  border-radius: var(--r-window);
+  box-shadow: 0 10px 32px rgba(0,0,0,0.65);
+}
+#auto-win .win-titlebar {
+  background: linear-gradient(180deg, var(--ms-title-bg, #4f5e77), var(--ms-window-border, #3a4454));
+  border-bottom: 1px solid var(--ms-window-border, #3a4454);
+}
+.auto-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  max-height: 380px;
+  background: var(--ms-panel-bg, #f1f3f6);
+  border-radius: 0 0 7px 7px;
+}
+.auto-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: var(--ms-window-bg, #d2d8e1);
+  border: 1px solid var(--ms-panel-border, #9ca8b8);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.auto-row:hover {
+  background: #ffffff;
+  border-color: var(--ms-title-bg, #4f5e77);
+}
+.auto-toggle-input {
+  display: none;
+}
+.auto-toggle-track {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  background: #cbd5e1;
+  border: 1px solid #94a3b8;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.auto-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: #64748b;
+  border-radius: 50%;
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.4, 1), background 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.auto-toggle-input:checked + .auto-toggle-track {
+  background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+  border-color: #2563eb;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.35);
+}
+.auto-toggle-input:checked + .auto-toggle-track .auto-toggle-thumb {
+  transform: translateX(14px);
+  background: #ffffff;
+}
+.auto-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.auto-label {
+  font: 700 11px/1.2 "Segoe UI", system-ui, sans-serif;
+  color: var(--ms-text-primary, #22262e);
+}
+.auto-hint {
+  font: 400 9.5px/1.2 "Segoe UI", system-ui, sans-serif;
+  color: var(--ms-text-muted, #6b7688);
+  margin-top: 2px;
+}
+.auto-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  margin-left: 20px;
+  background: rgba(210, 216, 225, 0.5);
+  border: 1px solid var(--ms-panel-border, #9ca8b8);
+  border-radius: 5px;
+}
+.auto-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font: 700 10px "Segoe UI", sans-serif;
+}
+.auto-slider-label {
+  color: var(--ms-text-primary, #22262e);
+}
+.auto-slider-val {
+  color: #38bdf8;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.auto-range-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: 9999px;
+  background: #1e293b;
+  outline: none;
+  border: 1px solid #334155;
+  cursor: pointer;
+}
+.auto-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  cursor: pointer;
+  transition: transform 0.1s, background 0.1s;
+}
+.auto-range-input::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: #7dd3fc;
+}
+.auto-reset {
+  margin-top: 6px;
+  padding: 6px 12px;
+  font: 700 10.5px "Segoe UI", sans-serif;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.auto-reset:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #dc2626;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+/* ---------- 5. Equipment Inventory Window (#equip-win) ---------- */
+#equip-win {
+  width: 320px; height: 395px;
+  background: var(--ms-window-border, #3a4454);
+  border: 1px solid var(--ms-window-border, #3a4454);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65);
+}
+#equip-win .win-titlebar {
+  background: linear-gradient(180deg, var(--ms-title-bg, #4f5e77), var(--ms-window-border, #3a4454));
+  border-bottom: 1px solid var(--ms-window-border, #3a4454);
+}
+#equip-win .x-body {
+  padding: 6px 8px 8px 8px; height: calc(100% - 30px); box-sizing: border-box; overflow: hidden;
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--ms-panel-bg, #f1f3f6);
+  border-radius: 0 0 7px 7px;
+}
+.equip-head-tabs {
+  display: flex; gap: 3px; border-bottom: 2px solid var(--ms-title-bg, #4f5e77); margin-bottom: 2px;
+}
+.equip-tab {
+  padding: 3px 14px; font: 700 10px -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--ms-text-muted, #6b7688); background: var(--ms-window-bg, #d2d8e1);
+  border: 1px solid var(--ms-panel-border, #9ca8b8); border-bottom: 0;
+  border-radius: 4px 4px 0 0; cursor: pointer; transition: all 0.12s;
+}
+.equip-tab.on {
+  background: var(--ms-title-bg, #4f5e77); color: #ffffff; border-color: var(--ms-title-bg, #4f5e77);
+}
+.equip-sub-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 2px 2px; font: 700 9.5px -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.equip-title-label { color: var(--ms-text-primary, #22262e); letter-spacing: 0.5px; }
+.equip-decor-btn {
+  background: var(--ms-window-bg, #d2d8e1); border: 1px solid var(--ms-panel-border, #9ca8b8);
+  border-radius: 3px; color: var(--ms-text-primary, #22262e); font: 700 8.5px -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: 1px 7px; cursor: pointer; transition: background 0.1s;
+}
+.equip-decor-btn:hover { background: #ffffff; }
+.egrid-container {
+  display: flex; gap: 6px; align-items: center; justify-content: center; margin: 3px 0;
+  flex: 1;
+}
+.e-sub-col { display: flex; flex-direction: column; gap: 4px; }
+.eslot {
+  width: 36px; height: 36px; border-radius: 4px; border: 1px solid var(--ms-panel-border, #9ca8b8);
+  background: var(--ms-window-bg, #d2d8e1); display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+  position: relative; cursor: pointer; transition: border-color 0.12s, background 0.12s;
+}
+.eslot:hover {
+  border-color: var(--ms-title-bg, #4f5e77);
+  background: #ffffff;
+}
+.eslot.empty {
+  background: rgba(210, 216, 225, 0.45);
+  border-style: dashed;
+}
+.eslot.filled {
+  background: #ffffff;
+}
+.eslot .gcell {
+  width: 100%; height: 100%; border: 0; background: transparent; display: flex; align-items: center; justify-content: center;
+}
+.eslot .gcell .ic { width: 30px; height: 30px; }
+.eprev {
+  position: relative; width: 136px; height: 206px; display: flex;
+  flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.95) 0%, rgba(210, 216, 225, 0.6) 75%), #d2d8e1;
+  border: 1px solid var(--ms-panel-border, #9ca8b8);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+  margin: 0 auto;
+}
+.eprev-pedestal {
+  position: absolute; bottom: 20px; width: 96px; height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(34, 197, 94, 0.6) 0%, rgba(34, 197, 94, 0.25) 55%, transparent 75%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+.eprev-char-wrap {
+  position: relative; z-index: 2; width: 104px; height: 120px;
+  display: flex; align-items: flex-end; justify-content: center;
+  margin-bottom: 18px;
+}
+.eprev-char {
+  position: relative; z-index: 2; image-rendering: pixelated;
+  max-width: 96px; max-height: 104px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+.eprev-aura {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 35%, rgba(56, 189, 248, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.equip-presets-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--ms-window-bg, #d2d8e1); border: 1px solid var(--ms-panel-border, #9ca8b8);
+  padding: 3px 6px; border-radius: 4px;
+  margin-top: 4px; font: 700 9px -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.preset-label { color: var(--ms-text-muted, #6b7688); }
+.preset-btns { display: flex; gap: 3px; align-items: center; }
+.preset-btn {
+  width: 18px; height: 18px; border-radius: 3px;
+  background: #ffffff; border: 1px solid var(--ms-panel-border, #9ca8b8);
+  color: var(--ms-text-primary, #22262e); font: 700 9px sans-serif; cursor: pointer;
+}
+.preset-btn.on { background: var(--ms-title-bg, #4f5e77); color: #fff; border-color: var(--ms-window-border, #3a4454); }
+.preset-apply-btn {
+  padding: 1px 7px; border-radius: 3px; background: var(--ms-title-bg, #4f5e77);
+  border: 1px solid var(--ms-window-border, #3a4454); color: #ffffff; font: 700 8.5px sans-serif;
+  cursor: pointer; transition: filter 0.1s;
+}
+.preset-apply-btn:hover { filter: brightness(1.15); }
+.equip-bottom-actions {
+  display: flex; gap: 4px; margin-top: 4px;
+}
+.equip-act-pill {
+  flex: 1; padding: 4px 1px; border-radius: 4px; text-align: center;
+  font: 800 8.5px -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer;
+  border: 1px solid var(--ms-panel-border, #9ca8b8);
+  transition: filter 0.1s;
+}
+.equip-act-pill:hover { filter: brightness(1.1); }
+.equip-act-pill.lime { background: #84cc16; color: #1e293b; border-color: #65a30d; }
+.equip-act-pill.slate { background: var(--ms-title-bg, #4f5e77); color: #ffffff; border-color: var(--ms-window-border, #3a4454); }
+.equip-act-pill.cyan { background: var(--accent-cyan, #0ea5e9); color: #ffffff; border-color: #0284c7; }
+
+/* ---------- 6. Inventory Window (#inv-win) ---------- */
+#inv-win {
+  width: 412px; height: 478px;
+}
+#inv-win .x-body {
+  padding: 6px 8px; height: 100%; box-sizing: border-box; overflow: hidden;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.inv-header-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 2px solid #00bcd4; padding-bottom: 2px;
+}
+.inv-tabs { display: flex; gap: 2px; }
+.inv-tab-pill {
+  padding: 2.5px 9px; font: 700 9.5px -apple-system, BlinkMacSystemFont, sans-serif;
+  background: rgba(30, 41, 59, 0.7); border: 0; border-radius: 4px 4px 0 0;
+  color: #94a3b8; cursor: pointer; transition: all 0.12s;
+}
+.inv-tab-pill.on { background: #00bcd4; color: #ffffff; }
+.inv-slot-top-badge {
+  font: 700 9px -apple-system, BlinkMacSystemFont, sans-serif; color: #94a3b8;
+}
+.inv-slot-top-badge .slot-active { color: #38bdf8; }
+.inv-sub-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 2px 1px;
+}
+.inv-sub-actions { display: flex; gap: 3px; }
+.inv-pill-btn {
+  padding: 2px 7px; border-radius: 12px; font: 700 8.5px -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer; display: flex; align-items: center; gap: 2px; border: 0;
+}
+.inv-pill-btn.cyan { background: #00bcd4; color: #ffffff; }
+.inv-pill-btn.slate { background: rgba(51, 65, 85, 0.85); color: #cbd5e1; }
+.inv-plus-slot {
+  height: 18px; padding: 0 6px; border-radius: 3px; border: 0;
+  background: #00bcd4; color: #fff; font: 800 8.5px sans-serif; cursor: pointer;
+}
+.inv-grid-wrap {
+  flex: 1; min-height: 0;
+  background: rgba(14, 20, 28, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px; padding: 4px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.inv-grid-wrap .inv-grid {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px;
+  height: 100%; overflow-y: auto; align-content: start;
+}
+.inv-grid-wrap .gcell {
+  width: 100%; aspect-ratio: 1 / 1; min-height: 38px;
+  background: rgba(26, 36, 48, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 3px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.inv-grid-wrap .gcell.blank {
+  background: rgba(20, 28, 38, 0.45); border-color: rgba(255, 255, 255, 0.05);
+}
+.inv-finance-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 2px 1px; margin-top: 2px;
+}
+.inv-meso-badge, .inv-points-badge {
+  background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px; padding: 2px 8px; font: 700 9.5px -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #facc15; display: flex; align-items: center; gap: 4px;
+}
+.inv-points-badge { color: #e2e8f0; }
+.inv-actions-right { display: flex; gap: 3px; }
+.inv-action-btn {
+  padding: 2px 7px; border-radius: 3px; font: 700 8.5px -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer; border: 0;
+}
+.inv-action-btn.slate { background: rgba(51, 65, 85, 0.85); color: #cbd5e1; }
+.inv-action-btn.cyan { background: #0284c7; color: #ffffff; }
+.inv-quick-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 3px;
+  display: flex; flex-direction: column; gap: 3px; margin-top: auto;
+}
+.inv-search-box { position: relative; width: 100%; }
+.inv-search-input {
+  width: 100%; height: 20px; background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 3px;
+  color: #fff; padding: 0 24px 0 6px; font: 9.5px -apple-system, BlinkMacSystemFont, sans-serif; outline: none;
+}
+.inv-search-icon {
+  position: absolute; right: 6px; top: 2px; font-size: 10px; color: #94a3b8; pointer-events: none;
+}
+.inv-footer-buttons {
+  display: flex; gap: 2px; justify-content: space-between;
+}
+.inv-foot-btn {
+  flex: 1; padding: 2.5px 0; background: rgba(30, 41, 59, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 3px;
+  color: #cbd5e1; font: 600 8px -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer; text-align: center;
+}
+.inv-foot-btn:hover { color: #fff; background: rgba(51, 65, 85, 0.9); }
+
+/* ---------- Bottom HUD: Left Player Info & System Icons ---------- */
+.ms-player-bar {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(14, 20, 32, 0.85); border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px; padding: 2px 7px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.ms-player-badge { font: 800 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #f1f5f9; letter-spacing: -0.2px; }
+
+/* ---------- Bottom HUD: Center HP / MP Stacked Bars + Centered EXP ---------- */
+.ms-hud-center {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; pointer-events: auto;
+}
+.ms-bar-row {
+  position: relative; width: 175px; height: 14px;
+}
+.ms-bar-track {
+  position: relative; width: 100%; height: 100%; border-radius: 3px; overflow: hidden;
+  background: #2b333d; border: 1px solid #14181f;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.65);
+}
+.ms-bar-fill.hp {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: linear-gradient(180deg, #ff3b69 0%, #e82c5a 100%);
+  border-radius: 2px; transition: width 0.18s cubic-bezier(0.2, 0.8, 0.4, 1);
+  box-shadow: 0 0 6px rgba(255, 59, 105, 0.2);
+}
+.ms-bar-fill.mp {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: linear-gradient(180deg, #14bbf3 0%, #009fe3 100%);
+  border-radius: 2px; transition: width 0.18s cubic-bezier(0.2, 0.8, 0.4, 1);
+  box-shadow: 0 0 6px rgba(20, 187, 243, 0.5);
+}
+.ms-bar-text {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font: 600 8.5px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #ffffff; text-shadow: 0 1px 1px #000, 0 0 3px #000; letter-spacing: 0.2px;
+  font-variant-numeric: tabular-nums; z-index: 2; pointer-events: none;
+}
+.ms-exp-text {
+  font: 700 9px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #ffffff; text-shadow: 0 1px 2px #000, 0 0 3px #000; letter-spacing: 0.2px;
+  font-variant-numeric: tabular-nums; margin-top: 1px;
+}
+
+/* ---------- Bottom HUD: Right Maple World Widget ---------- */
+.ms-maple-world-widget {
+  background: rgba(14, 20, 32, 0.85); border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 3px; padding: 2px 6px; font: 700 8.5px -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #94a3b8; display: flex; align-items: center; gap: 3px; margin-bottom: 2px;
+}
+.ms-maple-world-widget .mw-label { color: #f1f5f9; }
+.ms-maple-world-widget .mw-bracket { color: #64748b; }
+.ms-maple-world-widget .mw-count { color: #38bdf8; }
+
+
+

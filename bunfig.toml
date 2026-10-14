@@ -1,0 +1,11 @@
+# TailwindCSS plugin for the Maple Wayfarer game UI.
+#
+# Bun's CSS bundler has built-in Tailwind support via a native plugin
+# (bun-plugin-tailwind). Set it up here so the page styles are compiled
+# from source with all utility classes resolved at build time.
+#
+# Install: bun add --dev bun-plugin-tailwind
+# Config: this file (created automatically by the plugin install)
+
+[serve.static]
+plugins = ["bun-plugin-tailwind"]
